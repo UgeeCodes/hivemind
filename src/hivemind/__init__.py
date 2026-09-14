@@ -1,11 +1,17 @@
-"""
-hivemind - Turn any Mac into a programmable runtime.
-"""
+"""Hivemind — Turn any Mac into a programmable runtime."""
+from __future__ import annotations
 
 __version__ = '0.1.0'
 
-try:
-    from hivemind.sdk.client import mac, configure, fleet
-except ImportError:
-    # Placeholder imports for package loading before sdk is built
-    pass
+from hivemind.sdk.client import mac, configure, fleet, Mac, Result, Sandbox, Volume
+
+__all__ = [
+    '__version__',
+    'mac',
+    'configure', 
+    'fleet',
+    'Mac',
+    'Result',
+    'Sandbox',
+    'Volume',
+]
