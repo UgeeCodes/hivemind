@@ -66,8 +66,8 @@ def verify_scope(scopes: list[str], required: str) -> bool:
     Returns:
         bool: True if authorized, False otherwise.
     """
-    for s in scopes:
-        allowed = SCOPE_HIERARCHY.get(s, {s})
+    for scope in scopes:
+        allowed = SCOPE_HIERARCHY.get(scope, {scope})
         if required in allowed:
             return True
     return False
