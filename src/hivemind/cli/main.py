@@ -260,5 +260,72 @@ def volume_remove(name: str = typer.Argument(..., help='Volume name')):
     """Remove a volume."""
     console.print(f'[yellow]Volume removal coming soon: {name}[/yellow]')
 
+# ---- MCP command ----
+
+@app.command()
+def mcp():
+    """Start the MCP server (for Claude Desktop, Cursor, etc.)."""
+    try:
+        from hivemind.mcp_server import run_server
+        import asyncio
+        console.print('[bold green]Starting Hivemind MCP server...[/bold green]')
+        asyncio.run(run_server())
+    except ImportError:
+        console.print('[red]MCP support requires the mcp package.[/red]')
+        console.print('Install with: [bold]pip install "hivemind[mcp]"[/bold]')
+        raise typer.Exit(code=1)
+
+# ---- Agent command ----
+
+@app.command()
+def agent(
+    prompt: str = typer.Argument(..., help='Task for the agent'),
+    proxy: Optional[str] = typer.Option(None, '--proxy', help='Proxy URL for model API calls'),
+    secret: Optional[str] = typer.Option(None, '--secret', help='Hivemind secret name for proxy token'),
+    harness_name: str = typer.Option('claude', '--harness', '-h', help='Agent harness (claude/codex)'),
+    sandbox_mode: bool = typer.Option(False, '--sandbox', help='Run in isolated sandbox'),
+    machine: Optional[str] = typer.Option(None, '-m', '--machine', help='Target machine ID'),
+    all_machines: bool = typer.Option(False, '--all', help='Run on all machines in parallel'),
+):
+    """Run an AI agent on a remote Mac (keyless via proxy)."""
+    from hivemind.agent import run_agent, run_agent_on_fleet
+
+    if all_machines:
+        console.print(f'[bold]Running agent on all machines...[/bold]')
+        results = run_agent_on_fleet(prompt=prompt, proxy=proxy, secret=secret, harness=harness_name)
+        for mid, result in results.items():
+            status = '[green]✓[/green]' if result.exit_code == 0 else '[red]✗[/red]'
+            console.print(f'  {status} {mid}: exit {result.exit_code}')
+    else:
+        console.print(f'[bold]Running agent ({harness_name})...[/bold]')
+        result = run_agent(
+            prompt=prompt, proxy=proxy, secret=secret,
+            harness=harness_name, sandbox=sandbox_mode,
+            machine_id=machine, stream=True,
+        )
+        if result.exit_code == 0:
+            console.print(f'\n[green]✓ Agent completed[/green] ({result.duration_s:.2f}s)')
+        else:
+            console.print(f'\n[red]✗ Agent failed (exit {result.exit_code})[/red]')
+            raise typer.Exit(code=result.exit_code)
+
+# ---- Skill command ----
+
+@app.command()
+def skill(
+    install_flag: bool = typer.Option(False, '--install', help='Install SKILL.md for Claude Code'),
+    output: Optional[str] = typer.Option(None, '--output', '-o', help='Output directory'),
+):
+    """Generate or install a SKILL.md for AI agent integration."""
+    from hivemind.skill import generate_skill, install_skill
+
+    if install_flag:
+        path = install_skill()
+        console.print(f'[bold green]✓ SKILL.md installed[/bold green] → {path}')
+    else:
+        path = generate_skill(output_dir=output)
+        console.print(f'[bold green]✓ SKILL.md generated[/bold green] → {path}')
+
 if __name__ == '__main__':
     app()
+
