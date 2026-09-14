@@ -3,15 +3,18 @@ from __future__ import annotations
 
 __version__ = '0.1.0'
 
-from hivemind.sdk.client import mac, configure, fleet, Mac, Result, Sandbox, Volume
+try:
+    from hivemind.sdk.client import mac, configure, fleet, Mac, Result, Sandbox, Volume
+    __all__ = [
+        '__version__',
+        'mac',
+        'configure', 
+        'fleet',
+        'Mac',
+        'Result',
+        'Sandbox',
+        'Volume',
+    ]
+except ImportError:
+    __all__ = ['__version__']
 
-__all__ = [
-    '__version__',
-    'mac',
-    'configure', 
-    'fleet',
-    'Mac',
-    'Result',
-    'Sandbox',
-    'Volume',
-]

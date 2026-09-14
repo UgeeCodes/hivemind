@@ -203,10 +203,22 @@ class Store:
             return [self._row_to_dict(r, json_cols=['scopes']) for r in rows if r is not None]  # type: ignore
 
     async def revoke_api_key(self, key_hash: str) -> None:
-        """Revoke an API key."""
+        """Revoke an API key by hash."""
         conn = await self._get_conn()
         await conn.execute('UPDATE api_keys SET revoked_at = ? WHERE key_hash = ?', (time.time(), key_hash))
         await conn.commit()
+
+    async def revoke_api_key_by_prefix(self, key_prefix: str, owner_id: str | None = None) -> bool:
+        """Revoke an API key by prefix."""
+        conn = await self._get_conn()
+        query = 'UPDATE api_keys SET revoked_at = ? WHERE key_prefix = ?'
+        params: list[Any] = [time.time(), key_prefix]
+        if owner_id:
+            query += ' AND owner_id = ?'
+            params.append(owner_id)
+        cursor = await conn.execute(query, tuple(params))
+        await conn.commit()
+        return cursor.rowcount > 0
 
     async def validate_api_key(self, key_hash: str, required_scope: str) -> bool:
         """Validate if an API key is active and has the required scope."""
@@ -292,6 +304,31 @@ class Store:
         query += ' ORDER BY created_at DESC LIMIT ?'
         params = params + (limit,)
         
+        async with conn.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [self._row_to_dict(r) for r in rows if r is not None]  # type: ignore
+
+    # Sandbox methods
+    async def register_sandbox(self, sandbox_id: str, machine_id: str, name: str | None = None, dir_path: str = "") -> None:
+        """Register or update a sandbox."""
+        conn = await self._get_conn()
+        now = time.time()
+        await conn.execute('''
+            INSERT INTO sandboxes (id, machine_id, name, dir_path, created_at, last_used_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET last_used_at = excluded.last_used_at
+        ''', (sandbox_id, machine_id, name, dir_path, now, now))
+        await conn.commit()
+
+    async def list_sandboxes(self, machine_id: str | None = None) -> list[dict[str, Any]]:
+        """List sandboxes, optionally filtered by machine."""
+        conn = await self._get_conn()
+        query = 'SELECT * FROM sandboxes WHERE status = "active"'
+        params: tuple[Any, ...] = ()
+        if machine_id:
+            query += ' AND machine_id = ?'
+            params = (machine_id,)
+        query += ' ORDER BY created_at DESC'
         async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [self._row_to_dict(r) for r in rows if r is not None]  # type: ignore

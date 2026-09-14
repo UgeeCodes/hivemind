@@ -22,6 +22,8 @@ class WSRegistry:
         self._machines: dict[str, ConnectedMachine] = {}  # machine_id -> ConnectedMachine
         self._pending_responses: dict[str, asyncio.Future] = {}  # request_id -> Future for exec results
         self._stream_listeners: dict[str, list[asyncio.Queue]] = {}  # request_id -> list of queues for streaming
+        self._message_buffers: dict[str, list[str]] = {}  # request_id -> list of buffered messages
+        self._completed_requests: set[str] = set()  # request_id that reached exec_exit
     
     def register(self, machine_id: str, owner_id: str, hostname: str, ws: Any, tags: list[str] = None) -> None:
         """Register a daemon connection."""
@@ -77,6 +79,14 @@ class WSRegistry:
     def add_stream_listener(self, request_id: str) -> asyncio.Queue:
         """Add a streaming listener for a request_id. Returns a queue that will receive messages."""
         queue = asyncio.Queue()
+        
+        # Replay buffered messages if any already arrived
+        if request_id in self._message_buffers:
+            for msg in self._message_buffers[request_id]:
+                queue.put_nowait(msg)
+            if request_id in self._completed_requests:
+                queue.put_nowait(None)
+                
         if request_id not in self._stream_listeners:
             self._stream_listeners[request_id] = []
         self._stream_listeners[request_id].append(queue)
@@ -93,17 +103,22 @@ class WSRegistry:
                 del self._stream_listeners[request_id]
     
     async def fan_out(self, request_id: str, message: str) -> None:
-        """Push a message to all listeners for a given request_id."""
-        listeners = self._stream_listeners.get(request_id, [])
+        """Push a message to all listeners for a given request_id, buffering for late listeners."""
+        if request_id not in self._message_buffers:
+            self._message_buffers[request_id] = []
+        self._message_buffers[request_id].append(message)
+        
         is_exit = False
         try:
             msg_data = json.loads(message)
             if msg_data.get("type") == "exec_exit":
                 is_exit = True
+                self._completed_requests.add(request_id)
         except json.JSONDecodeError:
             pass
 
-        for queue in list(listeners):  # Copy list to avoid issues if listeners are removed
+        listeners = self._stream_listeners.get(request_id, [])
+        for queue in list(listeners):
             try:
                 queue.put_nowait(message)
                 if is_exit:

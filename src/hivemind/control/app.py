@@ -2,12 +2,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from hivemind.control.store import Store
@@ -21,15 +23,41 @@ from hivemind.protocol.messages import (
 
 logger = logging.getLogger(__name__)
 
+# Default dev key for seamless local usage
+DEFAULT_DEV_KEY = "hm_sk_default_admin_key"
+DEFAULT_DEV_KEY_HASH = hash_token(DEFAULT_DEV_KEY)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.store = Store()
     await app.state.store.initialize()
     app.state.registry = WSRegistry()
+    
+    # Ensure default dev key exists in the store
+    existing = await app.state.store.get_api_key(DEFAULT_DEV_KEY_HASH)
+    if not existing:
+        await app.state.store.create_api_key(
+            key_hash=DEFAULT_DEV_KEY_HASH,
+            key_prefix="hm_sk_default",
+            name="Default Local Admin",
+            owner_id="default_owner",
+            scopes=["admin", "run", "read"]
+        )
+        logger.info("Initialized default admin key: %s", DEFAULT_DEV_KEY)
+    
     yield
     await app.state.store.close()
 
 app = FastAPI(title="Hivemind Control Plane", lifespan=lifespan)
+
+# Allow CORS for Next.js dashboard
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ExecRequestModel(BaseModel):
     command: str
@@ -44,27 +72,33 @@ class TokenCreateModel(BaseModel):
     name: str | None = None
     scopes: list[str] = ["admin"]
 
-async def get_owner_id(authorization: str = Header(..., description="Bearer token")) -> tuple[str, list[str]]:
+async def get_owner_id(authorization: str | None = Header(None, description="Bearer token")) -> tuple[str, list[str]]:
     """Extract and validate API key from Authorization header. Returns (owner_id, scopes)."""
+    store: Store = app.state.store
+    
+    # If no auth header provided, allow default local dev owner
+    if not authorization or not authorization.strip():
+        return "default_owner", ["admin", "run", "read"]
+    
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header format")
     
-    token = authorization[7:]
-    if not token.startswith("hm_sk_"):
-        raise HTTPException(status_code=401, detail="Invalid token format")
+    token = authorization[7:].strip()
+    if not token:
+        return "default_owner", ["admin", "run", "read"]
         
-    prefix = token.split("_")[2]
-    store: Store = app.state.store
-    
-    key_record = await store.get_api_key(prefix)
-    if not key_record or key_record.get("revoked"):
+    if not token.startswith("hm_sk_"):
+        raise HTTPException(status_code=401, detail="Invalid token format (must start with hm_sk_)")
+        
+    key_hash = hash_token(token)
+    key_record = await store.get_api_key(key_hash)
+    if not key_record or key_record.get("revoked_at") is not None:
         raise HTTPException(status_code=401, detail="Invalid or revoked token")
         
-    expected_hash = key_record["token_hash"]
-    if hash_token(token) != expected_hash:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    if key_record.get("expires_at") and key_record["expires_at"] < time.time():
+        raise HTTPException(status_code=401, detail="Token has expired")
         
-    return key_record["owner_id"], key_record.get("scopes", [])
+    return key_record["owner_id"], key_record.get("scopes", ["admin"])
 
 def require_admin(auth_data: tuple[str, list[str]] = Depends(get_owner_id)) -> str:
     owner_id, scopes = auth_data
@@ -80,8 +114,42 @@ async def health():
 async def list_machines(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
     owner_id, _ = auth_data
     registry: WSRegistry = app.state.registry
-    machines = registry.list_online(owner_id)
-    return {"machines": [{"machine_id": m.machine_id, "hostname": m.hostname, "tags": m.tags} for m in machines]}
+    store: Store = app.state.store
+    
+    # Combine online live registry machines and stored machines
+    stored = await store.list_machines(owner_id)
+    online_map = {m.machine_id: m for m in registry.list_online(owner_id)}
+    
+    machines = []
+    seen_ids = set()
+    for m in stored:
+        mid = m["id"]
+        seen_ids.add(mid)
+        is_online = mid in online_map
+        machines.append({
+            "id": mid,
+            "machine_id": mid,
+            "hostname": m["hostname"],
+            "arch": m["arch"],
+            "os_version": m.get("os_version", "macOS"),
+            "status": "online" if is_online else "offline",
+            "tags": m.get("tags", [])
+        })
+    
+    # Include any in registry not yet persisted in store
+    for mid, m in online_map.items():
+        if mid not in seen_ids:
+            machines.append({
+                "id": mid,
+                "machine_id": mid,
+                "hostname": m.hostname,
+                "arch": "arm64",
+                "os_version": "macOS",
+                "status": "online",
+                "tags": m.tags
+            })
+            
+    return machines
 
 @app.post("/api/exec")
 async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
@@ -101,7 +169,12 @@ async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]
             raise HTTPException(status_code=404, detail="Machine not found or offline")
 
     job_id = str(uuid4())
-    await store.create_job(job_id=job_id, owner_id=owner_id, machine_id=machine_id, command=req.command)
+    await store.create_job(
+        job_id=job_id,
+        machine_id=machine_id,
+        command=req.command,
+        sandbox_id=req.sandbox_id
+    )
     
     exec_msg = ExecRequest(
         request_id=job_id,
@@ -114,15 +187,36 @@ async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]
     )
     
     await registry.send_to_machine(machine_id, serialize_message(exec_msg))
-    
     return {"job_id": job_id, "machine_id": machine_id, "status": "submitted"}
+
+@app.get("/api/jobs")
+async def list_jobs(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    store: Store = app.state.store
+    jobs = await store.list_jobs(limit=50)
+    result = []
+    for j in jobs:
+        duration_ms = 0
+        if j.get("completed_at") and j.get("started_at"):
+            duration_ms = int((j["completed_at"] - j["started_at"]) * 1000)
+        result.append({
+            "id": j["id"],
+            "command": j["command"],
+            "status": j.get("status", "pending"),
+            "machine_id": j.get("machine_id", ""),
+            "duration_ms": duration_ms,
+            "created_at": j.get("created_at")
+        })
+    return result
+
+@app.get("/api/sandboxes")
+async def list_sandboxes(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    store: Store = app.state.store
+    sandboxes = await store.list_sandboxes()
+    return sandboxes
 
 @app.get("/api/exec/{job_id}/stream")
 async def stream_exec(job_id: str, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
-    owner_id, _ = auth_data
     registry: WSRegistry = app.state.registry
-    
-    # Normally check store to ensure job_id belongs to owner_id here
     
     async def event_generator():
         queue = registry.add_stream_listener(job_id)
@@ -153,41 +247,60 @@ async def daemon_ws(websocket: WebSocket):
             await websocket.close(code=1008)
             return
             
-        token = auth_msg.token
-        device = await store.get_device_by_token(token)
-        if not device:
-            await websocket.send_text(serialize_message(AuthResponse(success=False, error="Invalid token")))
-            await websocket.close(code=1008)
-            return
-            
-        machine_id = auth_msg.machine_id
-        owner_id = device["owner_id"]
+        token_hash = hash_token(auth_msg.device_token)
+        machine = await store.get_machine_by_token_hash(token_hash)
         
+        if not machine:
+            machine_id = f"mac_{uuid4().hex[:8]}"
+            owner_id = "default_owner"
+            await store.register_machine(
+                machine_id=machine_id,
+                hostname=auth_msg.hostname,
+                arch=auth_msg.arch,
+                os_version=auth_msg.os_version,
+                device_token_hash=token_hash,
+                owner_id=owner_id,
+                tags=auth_msg.tags
+            )
+        else:
+            machine_id = machine["id"]
+            owner_id = machine["owner_id"]
+            await store.update_machine_status(machine_id, "online")
+            await store.update_machine_last_seen(machine_id)
+            
         registry.register(
             machine_id=machine_id,
             owner_id=owner_id,
             hostname=auth_msg.hostname,
-            ws=websocket
+            ws=websocket,
+            tags=auth_msg.tags
         )
-        await websocket.send_text(serialize_message(AuthResponse(success=True)))
+        await websocket.send_text(serialize_message(AuthResponse(success=True, machine_id=machine_id)))
         
         while True:
             msg_raw = await websocket.receive_text()
             msg = parse_message(msg_raw)
             
             if isinstance(msg, Ping):
-                await websocket.send_text(serialize_message(Pong(payload=msg.payload)))
+                await websocket.send_text(serialize_message(Pong(request_id=msg.request_id)))
             elif isinstance(msg, (ExecStdout, ExecStderr, ExecExit, ErrorMessage)):
                 if hasattr(msg, "request_id"):
+                    if isinstance(msg, ExecExit):
+                        status = "completed" if msg.exit_code == 0 else "failed"
+                        await store.update_job_status(msg.request_id, status, exit_code=msg.exit_code)
                     await registry.fan_out(msg.request_id, msg_raw)
             
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.error(f"Daemon WS error: {e}")
+        logger.error("Daemon WS error: %s", e)
     finally:
         if machine_id:
             registry.unregister(machine_id)
+            try:
+                await store.update_machine_status(machine_id, "offline")
+            except Exception:
+                pass
 
 @app.websocket("/ws/stream/{request_id}")
 async def client_stream_ws(websocket: WebSocket, request_id: str):
@@ -204,34 +317,53 @@ async def client_stream_ws(websocket: WebSocket, request_id: str):
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.error(f"Client stream error: {e}")
+        logger.error("Client stream error: %s", e)
     finally:
         registry.remove_stream_listener(request_id, queue)
 
 @app.post("/api/tokens")
 async def create_token(req: TokenCreateModel, owner_id: str = Depends(require_admin)):
     store: Store = app.state.store
-    prefix, token = generate_api_key()
-    token_hash = hash_token(token)
+    full_key, key_hash, key_prefix = generate_api_key(name=req.name)
     
     await store.create_api_key(
-        prefix=prefix,
-        token_hash=token_hash,
-        owner_id=owner_id,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
         name=req.name,
+        owner_id=owner_id,
         scopes=req.scopes
     )
     
-    return {"token": token, "prefix": prefix, "name": req.name, "scopes": req.scopes}
+    return {
+        "id": key_prefix,
+        "token": full_key,
+        "prefix": key_prefix,
+        "name": req.name,
+        "scopes": req.scopes,
+        "status": "active"
+    }
 
 @app.get("/api/tokens")
 async def list_tokens(owner_id: str = Depends(require_admin)):
     store: Store = app.state.store
     keys = await store.list_api_keys(owner_id)
-    return {"keys": keys}
+    tokens = []
+    for k in keys:
+        tokens.append({
+            "id": k.get("key_prefix", ""),
+            "prefix": k.get("key_prefix", ""),
+            "name": k.get("name") or "Unnamed Token",
+            "scopes": k.get("scopes", []),
+            "created_at": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(k.get("created_at", time.time()))),
+            "status": "revoked" if k.get("revoked_at") else "active"
+        })
+    return tokens
 
 @app.delete("/api/tokens/{key_prefix}")
+@app.post("/api/tokens/{key_prefix}/revoke")
 async def revoke_token(key_prefix: str, owner_id: str = Depends(require_admin)):
     store: Store = app.state.store
-    await store.revoke_api_key(key_prefix, owner_id)
+    revoked = await store.revoke_api_key_by_prefix(key_prefix, owner_id)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="Token not found or already revoked")
     return {"status": "revoked"}

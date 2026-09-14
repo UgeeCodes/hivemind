@@ -48,9 +48,16 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+SCOPE_HIERARCHY = {
+    'admin': {'admin', 'run', 'read'},
+    'run': {'run', 'read'},
+    'read': {'read'},
+}
+
+
 def verify_scope(scopes: list[str], required: str) -> bool:
     """
-    Check if the required scope is satisfied. 'admin' implies all scopes.
+    Check if the required scope is satisfied based on scope hierarchy.
     
     Args:
         scopes: The list of scopes the token possesses.
@@ -59,13 +66,8 @@ def verify_scope(scopes: list[str], required: str) -> bool:
     Returns:
         bool: True if authorized, False otherwise.
     """
-    if 'admin' in scopes:
-        return True
-    return required in scopes
-
-
-SCOPE_HIERARCHY = {
-    'admin': {'admin', 'run', 'read'},
-    'run': {'run', 'read'},
-    'read': {'read'},
-}
+    for s in scopes:
+        allowed = SCOPE_HIERARCHY.get(s, {s})
+        if required in allowed:
+            return True
+    return False

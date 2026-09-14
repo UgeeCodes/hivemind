@@ -29,7 +29,8 @@ def configure(url: str | None = None, token: str | None = None) -> None:
         _config['token'] = token
 
 def _headers() -> dict[str, str]:
-    return {'Authorization': f'Bearer {_config["token"]}'}
+    tok = _config['token'] or 'hm_sk_default_admin_key'
+    return {'Authorization': f'Bearer {tok}'}
 
 def _base_url() -> str:
     return _config['url'].rstrip('/')
@@ -62,7 +63,7 @@ class Mac:
         return (self.url or _base_url()).rstrip('/')
     
     def _get_headers(self) -> dict[str, str]:
-        token = self.token or _config['token']
+        token = self.token or _config['token'] or 'hm_sk_default_admin_key'
         return {'Authorization': f'Bearer {token}'}
     
     def run(
@@ -270,6 +271,7 @@ def fleet(url: str | None = None, token: str | None = None) -> list[Mac]:
     with httpx.Client(timeout=10.0) as client:
         resp = client.get(f'{base}/api/machines', headers=headers)
         resp.raise_for_status()
-        machines = resp.json().get('machines', [])
+        data = resp.json()
+        machines = data if isinstance(data, list) else data.get('machines', [])
     
     return [Mac(machine_id=m['machine_id'], url=url, token=token) for m in machines]

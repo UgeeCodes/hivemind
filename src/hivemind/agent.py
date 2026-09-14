@@ -3,7 +3,14 @@ import logging
 import os
 from dataclasses import dataclass
 
-from hivemind.sdk.client import Mac, Result, mac
+from typing import Any
+
+try:
+    from hivemind.sdk.client import Mac, Result, mac
+except ImportError:
+    Mac = Any  # type: ignore
+    Result = Any  # type: ignore
+    mac = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 

@@ -18,8 +18,6 @@ def generate_plist(
     tags: list[str] | None = None,
 ) -> dict:
     """Generate the LaunchAgent plist dictionary."""
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    
     python_path = sys.executable
     
     program_args = [
@@ -52,6 +50,10 @@ def install(
     tags: list[str] | None = None,
 ) -> Path:
     """Install the LaunchAgent plist and load it."""
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
     plist = generate_plist(control_plane_url, device_token, tags)
     
     PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
