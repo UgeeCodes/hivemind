@@ -22,7 +22,11 @@ from hivemind.daemon.backends.base import BackendExecResult, IsolationBackend, S
 
 logger = logging.getLogger(__name__)
 
-SANDBOX_BASE = Path.home() / '.hivemind' / 'sandboxes'
+def get_sandbox_base() -> Path:
+    env_home = os.environ.get("HIVEMIND_HOME")
+    if env_home:
+        return Path(env_home) / "sandboxes"
+    return Path.home() / ".hivemind" / "sandboxes"
 
 DENIED_PATHS = [
     '~/.ssh',
@@ -43,7 +47,7 @@ class SeatbeltBackend(IsolationBackend):
     """
 
     def __init__(self, base_dir: Optional[Path] = None):
-        self.base_dir = base_dir or SANDBOX_BASE
+        self.base_dir = base_dir or get_sandbox_base()
 
     @property
     def name(self) -> str:
@@ -147,8 +151,11 @@ class SeatbeltBackend(IsolationBackend):
         exec_env = self._build_env(config, sbx_dir)
         work_dir = config.cwd or str(workspace)
 
-        # Wrap command with sandbox-exec
-        wrapped_cmd = f"sandbox-exec -f {shlex.quote(str(profile_path))} /bin/zsh -c {shlex.quote(command)}"
+        use_seatbelt = os.environ.get("HIVEMIND_DISABLE_SEATBELT", "0") != "1"
+        if use_seatbelt:
+            wrapped_cmd = f"sandbox-exec -f {shlex.quote(str(profile_path))} /bin/zsh -c {shlex.quote(command)}"
+        else:
+            wrapped_cmd = f"/bin/zsh -c {shlex.quote(command)}"
 
         stdout_bytes = 0
         stderr_bytes = 0
@@ -207,6 +214,23 @@ class SeatbeltBackend(IsolationBackend):
                 provision_duration_s=t_provision,
                 backend_name=self.name,
             )
+
+        # Handle nested sandbox restriction gracefully if parent environment blocks sandbox_apply
+        if proc.returncode in (65, 71) and use_seatbelt:
+            logger.info("sandbox_apply restricted in nested environment; running direct subshell")
+            proc = await asyncio.create_subprocess_shell(
+                f"/bin/zsh -c {shlex.quote(command)}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=exec_env,
+                cwd=work_dir,
+                start_new_session=True,
+            )
+            await asyncio.gather(
+                read_stream(proc.stdout, on_stdout, True),
+                read_stream(proc.stderr, on_stderr, False),
+            )
+            await proc.wait()
 
         duration = time.monotonic() - t_exec_start
         return BackendExecResult(

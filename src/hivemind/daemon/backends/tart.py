@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_BASE_IMAGE = os.environ.get("HIVEMIND_TART_BASE_IMAGE", "macos-base")
 
 
+def get_tart_sim_base() -> Path:
+    env_home = os.environ.get("HIVEMIND_HOME")
+    if env_home:
+        return Path(env_home) / "tart_sim"
+    return Path.home() / ".hivemind" / "tart_sim"
+
+
 class TartBackend(IsolationBackend):
     """
     Micro-VM isolation backend using Tart (Virtualization.framework).
@@ -38,10 +45,12 @@ class TartBackend(IsolationBackend):
         base_image: str = DEFAULT_BASE_IMAGE,
         tart_bin: Optional[str] = None,
         simulate: bool = False,
+        base_dir: Optional[Path] = None,
     ):
         self.base_image = base_image
         self.tart_bin = tart_bin or shutil.which("tart") or "tart"
         self.simulate = simulate or (shutil.which("tart") is None)
+        self.base_dir = base_dir or get_tart_sim_base()
         self._running_vms: Dict[str, str] = {}  # sandbox_id -> vm_name
 
     @property
@@ -67,7 +76,7 @@ class TartBackend(IsolationBackend):
         if self.simulate:
             logger.info("Simulated Tart provision: clone %s -> %s", self.base_image, vm_name)
             # Create a localized mount point for consistency
-            vm_mount = Path.home() / '.hivemind' / 'tart_sim' / vm_name
+            vm_mount = self.base_dir / vm_name
             vm_mount.mkdir(parents=True, exist_ok=True)
             return vm_mount
 
@@ -217,7 +226,7 @@ class TartBackend(IsolationBackend):
         vm_name = self._running_vms.pop(sandbox_id, None) or self._vm_name_for(sandbox_id)
 
         if self.simulate:
-            sim_dir = Path.home() / '.hivemind' / 'tart_sim' / vm_name
+            sim_dir = self.base_dir / vm_name
             shutil.rmtree(sim_dir, ignore_errors=True)
             logger.info("Torn down simulated Tart VM %s", vm_name)
             return
