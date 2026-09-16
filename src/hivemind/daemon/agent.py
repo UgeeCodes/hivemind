@@ -93,6 +93,7 @@ class DaemonAgent:
             cwd=msg.cwd,
             timeout=msg.timeout,
             inherit_home=msg.inherit_home,
+            backend=getattr(msg, "backend", "seatbelt"),
         )
         
         exit_msg = ExecExit(

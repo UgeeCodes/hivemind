@@ -50,6 +50,7 @@ class ExecRequest(Message):
     sandbox_id: Optional[str] = None
     timeout: Optional[float] = None
     inherit_home: bool = False
+    backend: Optional[str] = "seatbelt"
 
 
 class ExecStdout(Message):
