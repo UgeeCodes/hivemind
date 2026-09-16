@@ -59,20 +59,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from typing import Any, Optional, Union
+
 class ExecRequestModel(BaseModel):
     command: str
-    machine_id: str | None = None
+    machine_id: Optional[str] = None
     env: dict[str, str] = {}
-    cwd: str | None = None
-    sandbox_id: str | None = None
-    timeout: float | None = None
+    cwd: Optional[str] = None
+    sandbox_id: Optional[str] = None
+    timeout: Optional[float] = None
     inherit_home: bool = False
 
 class TokenCreateModel(BaseModel):
-    name: str | None = None
+    name: Optional[str] = None
     scopes: list[str] = ["admin"]
 
-async def get_owner_id(authorization: str | None = Header(None, description="Bearer token")) -> tuple[str, list[str]]:
+async def get_owner_id(authorization: Optional[str] = Header(None, description="Bearer token")) -> tuple[str, list[str]]:
     """Extract and validate API key from Authorization header. Returns (owner_id, scopes)."""
     store: Store = app.state.store
     

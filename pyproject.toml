@@ -7,7 +7,7 @@ name = "hivemind"
 version = "0.1.0"
 description = "Turn any Mac into a programmable runtime. Modal, for Macs."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = "Apache-2.0"
 dependencies = [
     "fastapi>=0.115",

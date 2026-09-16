@@ -7,7 +7,7 @@ the control plane, daemon, and SDK clients using a discriminated union pattern.
 from __future__ import annotations
 
 import time
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional, Union
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, TypeAdapter
@@ -36,8 +36,8 @@ class AuthResponse(Message):
     """Sent from control plane to daemon as a response to AuthRequest."""
     type: Literal['auth_response'] = 'auth_response'
     success: bool
-    machine_id: str | None = None
-    error: str | None = None
+    machine_id: Optional[str] = None
+    error: Optional[str] = None
 
 
 # Execution
@@ -46,9 +46,9 @@ class ExecRequest(Message):
     type: Literal['exec_request'] = 'exec_request'
     command: str
     env: dict[str, str] = {}
-    cwd: str | None = None
-    sandbox_id: str | None = None
-    timeout: float | None = None
+    cwd: Optional[str] = None
+    sandbox_id: Optional[str] = None
+    timeout: Optional[float] = None
     inherit_home: bool = False
 
 
@@ -77,7 +77,7 @@ class SessionStart(Message):
     type: Literal['session_start'] = 'session_start'
     command: str
     env: dict[str, str] = {}
-    sandbox_id: str | None = None
+    sandbox_id: Optional[str] = None
 
 
 class SessionInput(Message):
@@ -141,34 +141,36 @@ class ErrorMessage(Message):
     """Sent when an error occurs."""
     type: Literal['error'] = 'error'
     error: str
-    code: str | None = None
+    code: Optional[str] = None
 
 
 # Discriminated union of all possible messages
 AnyMessage = Annotated[
-    AuthRequest
-    | AuthResponse
-    | ExecRequest
-    | ExecStdout
-    | ExecStderr
-    | ExecExit
-    | SessionStart
-    | SessionInput
-    | SessionOutput
-    | SessionClosed
-    | FilePush
-    | FilePull
-    | FileData
-    | Ping
-    | Pong
-    | ErrorMessage,
+    Union[
+        AuthRequest,
+        AuthResponse,
+        ExecRequest,
+        ExecStdout,
+        ExecStderr,
+        ExecExit,
+        SessionStart,
+        SessionInput,
+        SessionOutput,
+        SessionClosed,
+        FilePush,
+        FilePull,
+        FileData,
+        Ping,
+        Pong,
+        ErrorMessage,
+    ],
     Field(discriminator='type')
 ]
 
 _message_adapter = TypeAdapter(AnyMessage)
 
 
-def parse_message(raw: str | bytes) -> AnyMessage:
+def parse_message(raw: Union[str, bytes]) -> AnyMessage:
     """Parse a raw JSON string into the appropriate Message subclass."""
     return _message_adapter.validate_json(raw)
 

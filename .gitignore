@@ -34,3 +34,19 @@ venv.bak/
 # Testing and caching
 .pytest_cache/
 .ruff_cache/
+
+# Node & Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+
