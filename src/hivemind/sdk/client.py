@@ -58,6 +58,10 @@ class Mac:
     machine_id: str | None = None
     url: str | None = None
     token: str | None = None
+    hostname: str | None = None
+    arch: str | None = None
+    tags: list[str] = field(default_factory=list)
+    status: str | None = None
     
     def _get_url(self) -> str:
         return (self.url or _base_url()).rstrip('/')
@@ -274,4 +278,15 @@ def fleet(url: str | None = None, token: str | None = None) -> list[Mac]:
         data = resp.json()
         machines = data if isinstance(data, list) else data.get('machines', [])
     
-    return [Mac(machine_id=m['machine_id'], url=url, token=token) for m in machines]
+    return [
+        Mac(
+            machine_id=m['machine_id'],
+            url=url,
+            token=token,
+            hostname=m.get('hostname'),
+            arch=m.get('arch'),
+            tags=m.get('tags', []),
+            status=m.get('status', 'online'),
+        )
+        for m in machines
+    ]

@@ -64,11 +64,20 @@ def machines():
     
     table = Table(title='Online Machines')
     table.add_column('Machine ID', style='cyan')
-    table.add_column('Hostname')
+    table.add_column('Hostname', style='green')
+    table.add_column('Arch')
+    table.add_column('Status')
     table.add_column('Tags')
     for m in macs:
-        # We'd need to return more data from fleet() — stub for now
-        table.add_row(m.machine_id or '—', '—', '—')
+        tag_str = ', '.join(m.tags) if m.tags else '—'
+        status_style = 'green' if m.status == 'online' else 'dim'
+        table.add_row(
+            m.machine_id or '—',
+            m.hostname or '—',
+            m.arch or '—',
+            f'[{status_style}]{m.status or "online"}[/{status_style}]',
+            tag_str,
+        )
     console.print(table)
 
 @app.command()
