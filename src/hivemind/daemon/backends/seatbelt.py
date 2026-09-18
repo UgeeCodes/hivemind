@@ -85,7 +85,7 @@ class SeatbeltBackend(IsolationBackend):
             )
 
             ;; Network policy
-            ({network_rule})
+            {network_rule}
         """)
 
     async def provision(self, config: SandboxConfig) -> Path:

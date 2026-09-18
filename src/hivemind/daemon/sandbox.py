@@ -57,7 +57,7 @@ def generate_seatbelt_profile(sandbox_id: str, allow_network: bool = True) -> st
         )
         
         ;; Network policy
-        ({network_rule})
+        {network_rule}
     ''')
     return profile
 
