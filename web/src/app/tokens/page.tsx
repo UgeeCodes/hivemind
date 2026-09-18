@@ -17,6 +17,9 @@ export default function TokensPage() {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   
+  const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   // Form state
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState({ admin: false, run: true, read: true });
@@ -42,11 +45,16 @@ export default function TokensPage() {
     e.preventDefault();
     const selectedScopes = Object.entries(scopes).filter(([_, v]) => v).map(([k]) => k);
     try {
-      await fetch(`${API_BASE}/api/tokens`, {
+      const res = await fetch(`${API_BASE}/api/tokens`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, scopes: selectedScopes })
       });
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedToken(data.token);
+        setCopied(false);
+      }
       setName('');
       fetchTokens();
     } catch (err) {
@@ -72,6 +80,45 @@ export default function TokensPage() {
           <a href="/" className="text-neutral-400 hover:text-white">&larr; Back to Dashboard</a>
           <h1 className="text-2xl font-semibold text-white">API Tokens</h1>
         </div>
+
+        {/* Newly Created Token Banner */}
+        {createdToken && (
+          <div className="bg-emerald-950/70 border border-emerald-500/50 rounded-lg p-5 space-y-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-semibold text-emerald-400">Token Generated Successfully!</h3>
+                <p className="text-xs text-neutral-300 mt-1">
+                  Make sure to copy your full API key now. For security, it will never be displayed again.
+                </p>
+              </div>
+              <button 
+                onClick={() => setCreatedToken(null)}
+                className="text-neutral-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex gap-2 items-center">
+              <input 
+                type="text" 
+                readOnly 
+                value={createdToken}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs font-mono text-emerald-300 focus:outline-none select-all"
+              />
+              <button 
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(createdToken);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-xs font-medium whitespace-nowrap transition-colors"
+              >
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Create Form */}
         <section className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
