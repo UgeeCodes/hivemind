@@ -62,7 +62,7 @@ def machines():
         console.print('[yellow]No machines online.[/yellow]')
         return
     
-    table = Table(title='Online Machines')
+    table = Table(title='Machines')
     table.add_column('Machine ID', style='cyan')
     table.add_column('Hostname', style='green')
     table.add_column('Arch')
