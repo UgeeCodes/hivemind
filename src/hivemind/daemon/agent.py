@@ -17,6 +17,7 @@ from hivemind.protocol.messages import (
     Ping, Pong, ErrorMessage,
 )
 from hivemind.daemon.executor import Executor
+from hivemind.daemon.hardware import get_hardware_specs, get_cpu_utilization, get_memory_utilization
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +53,19 @@ class DaemonAgent:
         return f'{base}/ws/daemon'
     
     async def _authenticate(self, ws) -> bool:
-        """Send auth request and wait for response."""
+        """Send auth request with hardware specs and wait for response."""
+        hw = get_hardware_specs()
         auth_msg = AuthRequest(
             device_token=self.device_token,
             hostname=socket.gethostname(),
             arch=platform.machine(),
             os_version=platform.mac_ver()[0] or platform.release(),
             tags=self.tags,
+            chip=hw.chip,
+            cpu_cores=hw.cpu_cores,
+            ram_gb=hw.ram_gb,
+            cpu_percent=hw.cpu_percent,
+            memory_percent=hw.memory_percent,
         )
         await ws.send(serialize_message(auth_msg))
         
@@ -66,7 +73,7 @@ class DaemonAgent:
         response = parse_message(raw)
         
         if isinstance(response, AuthResponse) and response.success:
-            logger.info(f'Authenticated as machine {response.machine_id}')
+            logger.info(f'Authenticated as machine {response.machine_id} ({hw.chip}, {hw.ram_gb}GB RAM, {hw.cpu_cores} cores)')
             return True
         else:
             error = getattr(response, 'error', 'Unknown auth error')
@@ -121,6 +128,21 @@ class DaemonAgent:
             else:
                 logger.debug(f'Unhandled message type: {msg.type}')
     
+    async def _heartbeat_loop(self, ws) -> None:
+        """Periodically stream resource telemetry (CPU/Memory %) to the control plane."""
+        try:
+            while self._running:
+                await asyncio.sleep(5.0)
+                ping = Ping(
+                    cpu_percent=get_cpu_utilization(),
+                    memory_percent=get_memory_utilization(),
+                )
+                await ws.send(serialize_message(ping))
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f'Heartbeat error: {e}')
+
     async def run(self) -> None:
         """Main run loop with reconnection logic."""
         self._running = True
@@ -138,8 +160,12 @@ class DaemonAgent:
                         continue
                     
                     logger.info('Connected and authenticated. Listening for commands...')
-                    await self._message_loop(ws)
-                    
+                    heartbeat_task = asyncio.create_task(self._heartbeat_loop(ws))
+                    try:
+                        await self._message_loop(ws)
+                    finally:
+                        heartbeat_task.cancel()
+                        
             except (websockets.exceptions.ConnectionClosed, ConnectionRefusedError, OSError) as e:
                 logger.warning(f'Connection lost: {e}. Reconnecting in {self._reconnect_delay:.1f}s...')
             except Exception as e:
