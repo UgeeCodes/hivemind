@@ -96,12 +96,24 @@ export default function Dashboard() {
     }
   };
 
+  // Deduplicate machines by hostname, prioritizing online machines
+  const uniqueMachines = Array.from(
+    machines.reduce((map, m) => {
+      const key = (m.hostname || m.id).toLowerCase();
+      const existing = map.get(key);
+      if (!existing || (m.status === "online" && existing.status !== "online")) {
+        map.set(key, m);
+      }
+      return map;
+    }, new Map<string, Machine>()).values()
+  );
+
   // Fleet aggregations
-  const onlineMachines = machines.filter((m) => m.status === "online");
+  const onlineMachines = uniqueMachines.filter((m) => m.status === "online");
   const totalCores =
-    onlineMachines.reduce((acc, m) => acc + (m.cpu_cores || 0), 0) || 10;
+    onlineMachines.reduce((acc, m) => acc + (m.cpu_cores || 10), 0) || 10;
   const totalRamGb =
-    onlineMachines.reduce((acc, m) => acc + (m.ram_gb || 0), 0) || 16;
+    onlineMachines.reduce((acc, m) => acc + (m.ram_gb || 16), 0) || 16;
 
   const validCpuMachines = onlineMachines.filter(
     (m) => typeof m.cpu_percent === "number",
@@ -474,11 +486,11 @@ export default function Dashboard() {
               <div className="flex items-center justify-between text-xs text-[#8c929e] mb-4">
                 <span className="text-white font-medium">Machines</span>
                 <span className="text-xs text-[#6e7481]">
-                  {machines.length} total
+                  {uniqueMachines.length} total
                 </span>
               </div>
 
-              {machines.length === 0 ? (
+              {uniqueMachines.length === 0 ? (
                 <div className="p-8 text-center text-xs text-[#626772] border border-dashed border-[#1f2227] rounded-lg">
                   No machines connected yet. Start a daemon using{" "}
                   <code className="text-emerald-400">hivemind child start</code>
@@ -486,7 +498,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="divide-y divide-[#1a1d22]">
-                  {machines.map((m) => {
+                  {uniqueMachines.map((m) => {
                     const cleanHostname = (m.hostname || m.id).replace(/\.local$/, "");
                     const chipStr = m.chip || (m.arch === "arm64" ? "Apple M4" : "Apple Silicon");
                     const ramStr = m.ram_gb ? `${m.ram_gb}GB` : "16GB";
