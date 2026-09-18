@@ -261,10 +261,16 @@ async def daemon_ws(websocket: WebSocket):
             
         token_hash = hash_token(auth_msg.device_token)
         machine = await store.get_machine_by_token_hash(token_hash)
+        owner_id = "default_owner"
         
         if not machine:
+            # Check if this machine was previously registered under the same hostname
+            existing_machine = await store.get_machine_by_hostname(auth_msg.hostname, owner_id)
+            if existing_machine:
+                machine = existing_machine
+
+        if not machine:
             machine_id = f"mac_{uuid4().hex[:8]}"
-            owner_id = "default_owner"
             await store.register_machine(
                 machine_id=machine_id,
                 hostname=auth_msg.hostname,

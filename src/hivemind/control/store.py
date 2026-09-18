@@ -179,6 +179,16 @@ class Store:
             row = await cursor.fetchone()
             return self._row_to_dict(row, json_cols=['tags'])
 
+    async def get_machine_by_hostname(self, hostname: str, owner_id: str) -> dict[str, Any] | None:
+        """Retrieve a machine by its hostname and owner."""
+        conn = await self._get_conn()
+        async with conn.execute(
+            'SELECT * FROM machines WHERE hostname = ? AND owner_id = ? ORDER BY last_seen_at DESC LIMIT 1',
+            (hostname, owner_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return self._row_to_dict(row, json_cols=['tags'])
+
     async def list_machines(self, owner_id: str) -> list[dict[str, Any]]:
         """List all machines for a specific owner."""
         conn = await self._get_conn()

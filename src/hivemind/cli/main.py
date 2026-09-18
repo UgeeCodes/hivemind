@@ -150,13 +150,28 @@ def child_start(
     foreground: bool = typer.Option(False, '--foreground', '-f', help='Run in foreground'),
 ):
     """Start the daemon (connect this Mac to the control plane)."""
+    token_file = Path.home() / '.hivemind' / 'device_token'
     if not token:
-        # Auto-generate a device token for first-time setup
-        from hivemind.control.auth import generate_device_token
-        full_token, _ = generate_device_token()
-        token = full_token
-        console.print(f'[bold]Generated device token:[/bold] {token}')
-        console.print('[dim]Save this token — you\'ll need it to reconnect.[/dim]')
+        if token_file.exists():
+            token = token_file.read_text().strip()
+        else:
+            # Auto-generate a device token for first-time setup
+            from hivemind.control.auth import generate_device_token
+            full_token, _ = generate_device_token()
+            token = full_token
+            try:
+                token_file.parent.mkdir(parents=True, exist_ok=True)
+                token_file.write_text(token)
+                console.print(f'[bold]Generated device token:[/bold] {token}')
+                console.print(f'[dim]Saved to {token_file}[/dim]')
+            except Exception:
+                pass
+    elif token:
+        try:
+            token_file.parent.mkdir(parents=True, exist_ok=True)
+            token_file.write_text(token)
+        except Exception:
+            pass
     
     if foreground:
         from hivemind.daemon.agent import DaemonAgent
