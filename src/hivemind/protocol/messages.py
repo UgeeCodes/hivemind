@@ -30,6 +30,11 @@ class AuthRequest(Message):
     arch: str
     os_version: str
     tags: list[str] = []
+    chip: Optional[str] = None
+    cpu_cores: Optional[int] = None
+    ram_gb: Optional[int] = None
+    cpu_percent: Optional[float] = None
+    memory_percent: Optional[float] = None
 
 
 class AuthResponse(Message):
@@ -130,6 +135,8 @@ class FileData(Message):
 class Ping(Message):
     """Ping message for keep-alive."""
     type: Literal['ping'] = 'ping'
+    cpu_percent: Optional[float] = None
+    memory_percent: Optional[float] = None
 
 
 class Pong(Message):
