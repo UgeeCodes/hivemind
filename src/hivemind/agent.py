@@ -3,14 +3,17 @@ import logging
 import os
 from dataclasses import dataclass
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:
+if TYPE_CHECKING:
     from hivemind.sdk.client import Mac, Result, mac
-except ImportError:
-    Mac = Any  # type: ignore
-    Result = Any  # type: ignore
-    mac = None  # type: ignore
+else:
+    try:
+        from hivemind.sdk.client import Mac, Result, mac
+    except ImportError:
+        Mac = Any
+        Result = Any
+        mac = None
 
 logger = logging.getLogger(__name__)
 
