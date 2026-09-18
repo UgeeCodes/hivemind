@@ -62,19 +62,38 @@ def machines():
         console.print('[yellow]No machines online.[/yellow]')
         return
     
-    table = Table(title='Machines')
+    table = Table(title='Online Machines')
     table.add_column('Machine ID', style='cyan')
     table.add_column('Hostname', style='green')
-    table.add_column('Arch')
+    table.add_column('Specs')
+    table.add_column('Load')
     table.add_column('Status')
     table.add_column('Tags')
     for m in macs:
         tag_str = ', '.join(m.tags) if m.tags else '—'
         status_style = 'green' if m.status == 'online' else 'dim'
+
+        specs_parts = []
+        if m.chip:
+            specs_parts.append(m.chip)
+        if m.ram_gb:
+            specs_parts.append(f'{m.ram_gb}GB')
+        if m.cpu_cores:
+            specs_parts.append(f'{m.cpu_cores} cores')
+        specs_str = ' · '.join(specs_parts) if specs_parts else (m.arch or '—')
+
+        load_parts = []
+        if m.cpu_percent is not None:
+            load_parts.append(f'{m.cpu_percent:.0f}% CPU')
+        if m.memory_percent is not None:
+            load_parts.append(f'{m.memory_percent:.0f}% RAM')
+        load_str = ' / '.join(load_parts) if load_parts else '—'
+
         table.add_row(
             m.machine_id or '—',
             m.hostname or '—',
-            m.arch or '—',
+            specs_str,
+            load_str,
             f'[{status_style}]{m.status or "online"}[/{status_style}]',
             tag_str,
         )

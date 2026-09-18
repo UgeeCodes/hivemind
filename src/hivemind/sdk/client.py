@@ -62,6 +62,11 @@ class Mac:
     arch: str | None = None
     tags: list[str] = field(default_factory=list)
     status: str | None = None
+    chip: str | None = None
+    cpu_cores: int | None = None
+    ram_gb: int | None = None
+    cpu_percent: float | None = None
+    memory_percent: float | None = None
     
     def _get_url(self) -> str:
         return (self.url or _base_url()).rstrip('/')
@@ -287,6 +292,11 @@ def fleet(url: str | None = None, token: str | None = None) -> list[Mac]:
             arch=m.get('arch'),
             tags=m.get('tags', []),
             status=m.get('status', 'online'),
+            chip=m.get('chip'),
+            cpu_cores=m.get('cpu_cores'),
+            ram_gb=m.get('ram_gb'),
+            cpu_percent=m.get('cpu_percent'),
+            memory_percent=m.get('memory_percent'),
         )
         for m in machines
     ]
