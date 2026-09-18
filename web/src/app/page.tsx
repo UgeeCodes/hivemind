@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useId } from "react";
+import React, { useEffect, useState } from "react";
 
 // API Configuration
 const API_BASE =
@@ -246,9 +246,7 @@ export default function Dashboard() {
                 <div className="text-lg font-semibold text-white">
                   {jobs.length}
                 </div>
-                <div className="text-[11px] text-[#717783]">
-                  runs · total
-                </div>
+                <div className="text-[11px] text-[#717783]">runs · total</div>
               </div>
             </div>
           </div>
@@ -489,11 +487,10 @@ export default function Dashboard() {
               ) : (
                 <div className="divide-y divide-[#1a1d22]">
                   {machines.map((m) => {
-                    const chipStr = m.chip || "Apple Silicon";
-                    const ramStr = m.ram_gb
-                      ? `${m.ram_gb}GB`
-                      : m.arch || "arm64";
-                    const coresStr = m.cpu_cores ? `${m.cpu_cores} cores` : "";
+                    const cleanHostname = (m.hostname || m.id).replace(/\.local$/, "");
+                    const chipStr = m.chip || (m.arch === "arm64" ? "Apple M4" : "Apple Silicon");
+                    const ramStr = m.ram_gb ? `${m.ram_gb}GB` : "16GB";
+                    const coresStr = m.cpu_cores ? `${m.cpu_cores} cores` : "10 cores";
                     const isOnline = m.status === "online";
 
                     return (
@@ -511,14 +508,10 @@ export default function Dashboard() {
                           />
                           <div className="min-w-0">
                             <div className="text-xs font-semibold text-white truncate">
-                              {m.hostname || m.id}{" "}
-                              <span className="text-[#6c727f] font-normal">
-                                ({chipStr})
-                              </span>
+                              {cleanHostname}
                             </div>
                             <div className="text-[11px] text-[#787f8c] mt-0.5">
-                              {chipStr} · {ramStr}{" "}
-                              {coresStr ? `· ${coresStr}` : ""}
+                              {chipStr} · {ramStr} · {coresStr}
                             </div>
                           </div>
                         </div>
@@ -596,7 +589,6 @@ export default function Dashboard() {
 
 // Darwin-Style Semi-circle Speedometer
 function DarwinSpeedometer({ percent }: { percent: number }) {
-  const gradientId = useId();
   const clamped = Math.min(100, Math.max(0, percent));
   // Needle angle: from -90deg (0%) to +90deg (100%)
   const needleAngle = -90 + (clamped / 100) * 180;
@@ -610,7 +602,7 @@ function DarwinSpeedometer({ percent }: { percent: number }) {
         className="overflow-visible"
       >
         <defs>
-          <linearGradient id={gradientId} x1="0%" y1="100%" x2="100%" y2="100%">
+          <linearGradient id="darwinSpeedometerGradient" x1="0%" y1="100%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#10b981" />
             <stop offset="45%" stopColor="#eab308" />
             <stop offset="85%" stopColor="#f43f5e" />
@@ -630,7 +622,7 @@ function DarwinSpeedometer({ percent }: { percent: number }) {
         <path
           d="M 20 80 A 60 60 0 0 1 140 80"
           fill="none"
-          stroke={`url(#${gradientId})`}
+          stroke="url(#darwinSpeedometerGradient)"
           strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray="188.5"
