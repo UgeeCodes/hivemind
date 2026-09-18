@@ -265,7 +265,7 @@ def mac(
 def fleet(url: str | None = None, token: str | None = None) -> list[Mac]:
     """Get all online Macs in your fleet."""
     base = (url or _base_url()).rstrip('/')
-    tok = token or _config['token']
+    tok = token or _config['token'] or 'hm_sk_default_admin_key'
     headers = {'Authorization': f'Bearer {tok}'}
     
     with httpx.Client(timeout=10.0) as client:

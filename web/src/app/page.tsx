@@ -62,6 +62,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleQuickRun = async (e: React.FormEvent) => {
@@ -75,6 +77,7 @@ export default function Dashboard() {
       });
       setQuickRunCmd('');
       fetchData();
+      setTimeout(fetchData, 600);
     } catch (err) {
       console.error('Quick run failed', err);
     }
