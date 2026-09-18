@@ -50,10 +50,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [quickRunCmd, setQuickRunCmd] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
-  const [timeRange, setTimeRange] = useState<"15m" | "1h" | "24h">("15m");
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "sandboxes" | "machines" | "volumes" | "tokens" | "runs"
-  >("overview");
 
   const fetchData = async () => {
     try {
@@ -161,65 +157,15 @@ export default function Dashboard() {
 
         {/* Sub-navigation Tabs */}
         <div className="max-w-[1340px] mx-auto px-4 sm:px-6 flex items-center gap-1 overflow-x-auto py-1 text-xs border-t border-[#17191d]">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === "overview"
-                ? "bg-[#1e2126] text-white font-medium shadow-sm"
-                : "text-[#828894] hover:text-white"
-            }`}
-          >
+          <span className="px-3 py-1 rounded-md bg-[#1e2126] text-white font-medium shadow-sm">
             Overview
-          </button>
-          <button
-            onClick={() => setActiveTab("sandboxes")}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === "sandboxes"
-                ? "bg-[#1e2126] text-white font-medium"
-                : "text-[#828894] hover:text-white"
-            }`}
-          >
-            Sandboxes
-          </button>
-          <button
-            onClick={() => setActiveTab("machines")}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === "machines"
-                ? "bg-[#1e2126] text-white font-medium"
-                : "text-[#828894] hover:text-white"
-            }`}
-          >
-            Machines
-          </button>
-          <button
-            onClick={() => setActiveTab("volumes")}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === "volumes"
-                ? "bg-[#1e2126] text-white font-medium"
-                : "text-[#828894] hover:text-white"
-            }`}
-          >
-            Volumes
-          </button>
+          </span>
           <a
             href="/tokens"
             className="px-3 py-1 rounded-md text-[#828894] hover:text-white transition-colors"
           >
-            Secrets
+            API Tokens
           </a>
-          <button
-            onClick={() => setActiveTab("runs")}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === "runs"
-                ? "bg-[#1e2126] text-white font-medium"
-                : "text-[#828894] hover:text-white"
-            }`}
-          >
-            Runs
-          </button>
-          <button className="px-3 py-1 rounded-md text-[#828894] hover:text-white transition-colors">
-            Settings
-          </button>
         </div>
       </header>
 
@@ -235,22 +181,6 @@ export default function Dashboard() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Your Macs, programmable.
             </h1>
-          </div>
-
-          <div className="flex items-center gap-1 bg-[#121417] p-0.5 rounded-lg border border-[#1f2227] self-start text-xs">
-            {(["15m", "1h", "24h"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTimeRange(t)}
-                className={`px-2.5 py-1 rounded-md transition-colors ${
-                  timeRange === t
-                    ? "bg-[#1f2228] text-white font-medium"
-                    : "text-[#777e8a] hover:text-[#b2b8c2]"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -286,12 +216,6 @@ export default function Dashboard() {
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   <span className="text-white">Fleet</span>
                 </div>
-                <button
-                  onClick={() => setActiveTab("machines")}
-                  className="text-xs text-[#6e7481] hover:text-white"
-                >
-                  View all
-                </button>
               </div>
 
               <div className="mt-4 flex items-baseline gap-2">
@@ -323,7 +247,7 @@ export default function Dashboard() {
                   {jobs.length}
                 </div>
                 <div className="text-[11px] text-[#717783]">
-                  runs · {timeRange}
+                  runs · total
                 </div>
               </div>
             </div>
