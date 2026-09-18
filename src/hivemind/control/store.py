@@ -31,6 +31,11 @@ class Store:
                 arch TEXT NOT NULL,
                 os_version TEXT NOT NULL,
                 tags TEXT DEFAULT '[]',  -- JSON array
+                chip TEXT,
+                cpu_cores INTEGER,
+                ram_gb INTEGER,
+                cpu_percent REAL,
+                memory_percent REAL,
                 device_token_hash TEXT NOT NULL UNIQUE,
                 owner_id TEXT NOT NULL,
                 status TEXT DEFAULT 'offline',  -- online | offline | busy
@@ -83,6 +88,12 @@ class Store:
                 created_at REAL NOT NULL
             );
         ''')
+        # Migrate existing tables to ensure hardware columns exist
+        for col_def in ['chip TEXT', 'cpu_cores INTEGER', 'ram_gb INTEGER', 'cpu_percent REAL', 'memory_percent REAL']:
+            try:
+                await conn.execute(f'ALTER TABLE machines ADD COLUMN {col_def}')
+            except Exception:
+                pass
         await conn.commit()
 
     async def close(self) -> None:
@@ -112,7 +123,12 @@ class Store:
         os_version: str,
         device_token_hash: str,
         owner_id: str,
-        tags: list[str] | None = None
+        tags: list[str] | None = None,
+        chip: str | None = None,
+        cpu_cores: int | None = None,
+        ram_gb: int | None = None,
+        cpu_percent: float | None = None,
+        memory_percent: float | None = None,
     ) -> None:
         """Register a new machine or update existing one."""
         conn = await self._get_conn()
@@ -121,18 +137,32 @@ class Store:
         
         await conn.execute('''
             INSERT INTO machines (
-                id, hostname, arch, os_version, tags, device_token_hash, owner_id, status, last_seen_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'online', ?, ?)
+                id, hostname, arch, os_version, tags, chip, cpu_cores, ram_gb, cpu_percent, memory_percent, device_token_hash, owner_id, status, last_seen_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'online', ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 hostname=excluded.hostname,
                 arch=excluded.arch,
                 os_version=excluded.os_version,
                 tags=excluded.tags,
+                chip=coalesce(excluded.chip, machines.chip),
+                cpu_cores=coalesce(excluded.cpu_cores, machines.cpu_cores),
+                ram_gb=coalesce(excluded.ram_gb, machines.ram_gb),
+                cpu_percent=coalesce(excluded.cpu_percent, machines.cpu_percent),
+                memory_percent=coalesce(excluded.memory_percent, machines.memory_percent),
                 device_token_hash=excluded.device_token_hash,
                 owner_id=excluded.owner_id,
                 status='online',
                 last_seen_at=excluded.last_seen_at
-        ''', (machine_id, hostname, arch, os_version, tags_json, device_token_hash, owner_id, now, now))
+        ''', (machine_id, hostname, arch, os_version, tags_json, chip, cpu_cores, ram_gb, cpu_percent, memory_percent, device_token_hash, owner_id, now, now))
+        await conn.commit()
+
+    async def update_machine_telemetry(self, machine_id: str, cpu_percent: float | None, memory_percent: float | None) -> None:
+        """Update live CPU and memory utilization for an online machine."""
+        conn = await self._get_conn()
+        await conn.execute(
+            'UPDATE machines SET cpu_percent = ?, memory_percent = ?, last_seen_at = ? WHERE id = ?',
+            (cpu_percent, memory_percent, time.time(), machine_id)
+        )
         await conn.commit()
 
     async def get_machine(self, machine_id: str) -> dict[str, Any] | None:

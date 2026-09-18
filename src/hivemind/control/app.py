@@ -135,7 +135,12 @@ async def list_machines(auth_data: tuple[str, list[str]] = Depends(get_owner_id)
             "arch": m["arch"],
             "os_version": m.get("os_version", "macOS"),
             "status": "online" if is_online else "offline",
-            "tags": m.get("tags", [])
+            "tags": m.get("tags", []),
+            "chip": m.get("chip") or "Apple Silicon",
+            "cpu_cores": m.get("cpu_cores") or 8,
+            "ram_gb": m.get("ram_gb") or 16,
+            "cpu_percent": m.get("cpu_percent") or 0.0,
+            "memory_percent": m.get("memory_percent") or 0.0,
         })
     
     # Include any in registry not yet persisted in store
@@ -148,7 +153,12 @@ async def list_machines(auth_data: tuple[str, list[str]] = Depends(get_owner_id)
                 "arch": "arm64",
                 "os_version": "macOS",
                 "status": "online",
-                "tags": m.tags
+                "tags": m.tags,
+                "chip": "Apple Silicon",
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "cpu_percent": 0.0,
+                "memory_percent": 0.0,
             })
             
     return machines
@@ -262,11 +272,30 @@ async def daemon_ws(websocket: WebSocket):
                 os_version=auth_msg.os_version,
                 device_token_hash=token_hash,
                 owner_id=owner_id,
-                tags=auth_msg.tags
+                tags=auth_msg.tags,
+                chip=auth_msg.chip,
+                cpu_cores=auth_msg.cpu_cores,
+                ram_gb=auth_msg.ram_gb,
+                cpu_percent=auth_msg.cpu_percent,
+                memory_percent=auth_msg.memory_percent,
             )
         else:
             machine_id = machine["id"]
             owner_id = machine["owner_id"]
+            await store.register_machine(
+                machine_id=machine_id,
+                hostname=auth_msg.hostname,
+                arch=auth_msg.arch,
+                os_version=auth_msg.os_version,
+                device_token_hash=token_hash,
+                owner_id=owner_id,
+                tags=auth_msg.tags,
+                chip=auth_msg.chip,
+                cpu_cores=auth_msg.cpu_cores,
+                ram_gb=auth_msg.ram_gb,
+                cpu_percent=auth_msg.cpu_percent,
+                memory_percent=auth_msg.memory_percent,
+            )
             await store.update_machine_status(machine_id, "online")
             await store.update_machine_last_seen(machine_id)
             
@@ -284,6 +313,8 @@ async def daemon_ws(websocket: WebSocket):
             msg = parse_message(msg_raw)
             
             if isinstance(msg, Ping):
+                if getattr(msg, "cpu_percent", None) is not None or getattr(msg, "memory_percent", None) is not None:
+                    await store.update_machine_telemetry(machine_id, msg.cpu_percent, msg.memory_percent)
                 await websocket.send_text(serialize_message(Pong(request_id=msg.request_id)))
             elif isinstance(msg, (ExecStdout, ExecStderr, ExecExit, ErrorMessage)):
                 if hasattr(msg, "request_id"):
