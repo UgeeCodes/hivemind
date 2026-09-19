@@ -255,6 +255,64 @@ class TestWebDashboardFiles(unittest.TestCase):
         self.assertIn("compilerOptions", data)
 
 
+class TestJobOutputAndPruning(unittest.IsolatedAsyncioTestCase):
+    """Verify job output persistence and 25-run retention pruning."""
+
+    async def test_job_output_and_pruning(self):
+        import tempfile
+        from pathlib import Path
+        from hivemind.control.store import Store
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_store.db"
+            store = Store(db_path=str(db_path))
+            await store.initialize()
+
+            # Register a test machine
+            await store.register_machine(
+                machine_id="mac_test_prune",
+                hostname="test-mac",
+                arch="arm64",
+                os_version="15.0",
+                device_token_hash="hash123",
+                owner_id="owner_test",
+            )
+
+            # Test appending stdout and stderr
+            job_id = "job_test_output"
+            await store.create_job(
+                job_id=job_id,
+                machine_id="mac_test_prune",
+                command="echo 'hello world'",
+            )
+            await store.append_job_output(job_id, stdout="hello ")
+            await store.append_job_output(job_id, stdout="world\n")
+            await store.append_job_output(job_id, stderr="warning: test\n")
+            await store.update_job_status(job_id, "completed", exit_code=0)
+
+            job = await store.get_job(job_id)
+            self.assertIsNotNone(job)
+            self.assertEqual(job["stdout"], "hello world\n")
+            self.assertEqual(job["stderr"], "warning: test\n")
+            self.assertEqual(job["status"], "completed")
+            self.assertEqual(job["exit_code"], 0)
+
+            # Test 25-run retention pruning
+            for i in range(30):
+                jid = f"job_retention_{i}"
+                await store.create_job(
+                    job_id=jid,
+                    machine_id="mac_test_prune",
+                    command=f"cmd_{i}",
+                )
+                await store.update_job_status(jid, "completed", exit_code=0)
+
+            jobs = await store.list_jobs(limit=50)
+            self.assertEqual(len(jobs), 25)
+
+            await store.close()
+
+
 if __name__ == "__main__":
     unittest.main()
 
