@@ -386,7 +386,7 @@ export default function Dashboard() {
                 </span>
                 <span className="text-xs text-[#828894]">
                   {onlineMachines.length === 1 ? "Mac online" : "Macs online"} ·{" "}
-                  {machines.length || 1} connected
+                  {uniqueMachines.length || 1} connected
                 </span>
               </div>
             </div>
