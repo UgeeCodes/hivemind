@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 // API Configuration
 const API_BASE =
@@ -25,8 +25,22 @@ interface Job {
   id: string;
   command: string;
   status: "running" | "completed" | "failed" | "pending";
+  exit_code?: number;
+  machine_id?: string;
+  stdout?: string;
+  stderr?: string;
   duration_ms: number;
   created_at?: number;
+}
+
+interface ActiveTerminal {
+  jobId: string;
+  command: string;
+  machineId?: string;
+  status: "running" | "completed" | "failed";
+  exitCode?: number;
+  output: string;
+  durationMs?: number;
 }
 
 interface ApiToken {
@@ -50,6 +64,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [quickRunCmd, setQuickRunCmd] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
+  const [activeTerminal, setActiveTerminal] = useState<ActiveTerminal | null>(null);
+  const terminalBottomRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
     try {
@@ -76,19 +92,83 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (terminalBottomRef.current) {
+      terminalBottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [activeTerminal?.output]);
+
   const handleQuickRun = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickRunCmd || isExecuting) return;
+    const cmd = quickRunCmd;
     setIsExecuting(true);
+    setQuickRunCmd("");
+
     try {
-      await fetch(`${API_BASE}/api/exec`, {
+      const res = await fetch(`${API_BASE}/api/exec`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: quickRunCmd }),
+        body: JSON.stringify({ command: cmd }),
       });
-      setQuickRunCmd("");
-      fetchData();
-      setTimeout(fetchData, 600);
+      if (!res.ok) throw new Error("Failed to dispatch command");
+      const data = await res.json();
+      const jobId = data.job_id;
+      const machineId = data.machine_id;
+
+      setActiveTerminal({
+        jobId,
+        command: cmd,
+        machineId,
+        status: "running",
+        output: "",
+      });
+
+      // Stream output live via WebSocket
+      const wsUrl = API_BASE.replace(/^http/, "ws") + `/ws/stream/${jobId}`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "exec_stdout" || msg.type === "exec_stderr") {
+            setActiveTerminal((prev) =>
+              prev && prev.jobId === jobId
+                ? { ...prev, output: prev.output + (msg.data || "") }
+                : prev
+            );
+          } else if (msg.type === "exec_exit") {
+            const isSuccess = msg.exit_code === 0;
+            setActiveTerminal((prev) =>
+              prev && prev.jobId === jobId
+                ? {
+                    ...prev,
+                    status: isSuccess ? "completed" : "failed",
+                    exitCode: msg.exit_code,
+                    durationMs: msg.duration_s
+                      ? Math.round(msg.duration_s * 1000)
+                      : undefined,
+                  }
+                : prev
+            );
+            fetchData();
+          }
+        } catch {
+          setActiveTerminal((prev) =>
+            prev && prev.jobId === jobId
+              ? { ...prev, output: prev.output + event.data }
+              : prev
+          );
+        }
+      };
+
+      ws.onerror = () => {
+        setTimeout(fetchData, 800);
+      };
+
+      ws.onclose = () => {
+        fetchData();
+      };
     } catch (err) {
       console.error("Quick run failed", err);
     } finally {
@@ -98,14 +178,19 @@ export default function Dashboard() {
 
   // Deduplicate machines by hostname, prioritizing online machines
   const uniqueMachines = Array.from(
-    machines.reduce((map, m) => {
-      const key = (m.hostname || m.id).toLowerCase();
-      const existing = map.get(key);
-      if (!existing || (m.status === "online" && existing.status !== "online")) {
-        map.set(key, m);
-      }
-      return map;
-    }, new Map<string, Machine>()).values()
+    machines
+      .reduce((map, m) => {
+        const key = (m.hostname || m.id).toLowerCase();
+        const existing = map.get(key);
+        if (
+          !existing ||
+          (m.status === "online" && existing.status !== "online")
+        ) {
+          map.set(key, m);
+        }
+        return map;
+      }, new Map<string, Machine>())
+      .values(),
   );
 
   // Fleet aggregations
@@ -191,7 +276,7 @@ export default function Dashboard() {
               <span>Live workspace</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Your Macs, programmable.
+              Your Mac fleet, as an API.
             </h1>
           </div>
         </div>
@@ -217,6 +302,69 @@ export default function Dashboard() {
             {isExecuting ? "Running..." : "Execute"}
           </button>
         </form>
+
+        {/* Inline Live Streaming Terminal */}
+        {activeTerminal && (
+          <div className="bg-[#0b0c0e] border border-[#1f2228] rounded-xl overflow-hidden text-xs font-mono shadow-xl transition-all">
+            {/* Terminal Header */}
+            <div className="bg-[#121417] px-4 py-2.5 flex items-center justify-between border-b border-[#1b1e24]">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[#10b981] font-bold">$</span>
+                <span className="text-white font-medium truncate max-w-sm sm:max-w-lg">
+                  {activeTerminal.command}
+                </span>
+                {activeTerminal.machineId && (
+                  <span className="px-1.5 py-0.5 rounded bg-[#181a1f] border border-[#242730] text-[10px] text-[#787f8e]">
+                    {activeTerminal.machineId}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                {activeTerminal.status === "running" ? (
+                  <span className="flex items-center gap-1.5 text-[11px] text-amber-400 font-sans">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span>Streaming</span>
+                  </span>
+                ) : activeTerminal.status === "completed" ? (
+                  <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-sans">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>
+                      Exit 0 {activeTerminal.durationMs ? `(${activeTerminal.durationMs}ms)` : ""}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] text-rose-400 font-sans">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                    <span>Exit {activeTerminal.exitCode ?? 1}</span>
+                  </span>
+                )}
+
+                <button
+                  onClick={() => setActiveTerminal(null)}
+                  className="text-[#646a77] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#1f2228] transition-colors"
+                  title="Close terminal"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Terminal Body */}
+            <div className="p-4 max-h-64 overflow-y-auto font-mono text-[11.5px] leading-relaxed text-[#d4d4d8] selection:bg-emerald-500/30">
+              {activeTerminal.output ? (
+                <pre className="whitespace-pre-wrap break-all font-mono">
+                  {activeTerminal.output}
+                </pre>
+              ) : activeTerminal.status === "running" ? (
+                <span className="text-[#555a65] animate-pulse">Waiting for output...</span>
+              ) : (
+                <span className="text-[#555a65] italic">(Process exited with no output)</span>
+              )}
+              <div ref={terminalBottomRef} />
+            </div>
+          </div>
+        )}
 
         {/* Row 1: Fleet Card, CPU Gauge, Memory Pool */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -499,10 +647,17 @@ export default function Dashboard() {
               ) : (
                 <div className="divide-y divide-[#1a1d22]">
                   {uniqueMachines.map((m) => {
-                    const cleanHostname = (m.hostname || m.id).replace(/\.local$/, "");
-                    const chipStr = m.chip || (m.arch === "arm64" ? "Apple M4" : "Apple Silicon");
+                    const cleanHostname = (m.hostname || m.id).replace(
+                      /\.local$/,
+                      "",
+                    );
+                    const chipStr =
+                      m.chip ||
+                      (m.arch === "arm64" ? "Apple M4" : "Apple Silicon");
                     const ramStr = m.ram_gb ? `${m.ram_gb}GB` : "16GB";
-                    const coresStr = m.cpu_cores ? `${m.cpu_cores} cores` : "10 cores";
+                    const coresStr = m.cpu_cores
+                      ? `${m.cpu_cores} cores`
+                      : "10 cores";
                     const isOnline = m.status === "online";
 
                     return (
@@ -614,7 +769,13 @@ function DarwinSpeedometer({ percent }: { percent: number }) {
         className="overflow-visible"
       >
         <defs>
-          <linearGradient id="darwinSpeedometerGradient" x1="0%" y1="100%" x2="100%" y2="100%">
+          <linearGradient
+            id="darwinSpeedometerGradient"
+            x1="0%"
+            y1="100%"
+            x2="100%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#10b981" />
             <stop offset="45%" stopColor="#eab308" />
             <stop offset="85%" stopColor="#f43f5e" />
