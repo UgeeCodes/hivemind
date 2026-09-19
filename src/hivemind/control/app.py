@@ -204,7 +204,7 @@ async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]
 @app.get("/api/jobs")
 async def list_jobs(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
     store: Store = app.state.store
-    jobs = await store.list_jobs(limit=50)
+    jobs = await store.list_jobs(limit=25)
     result = []
     for j in jobs:
         duration_ms = 0
@@ -214,11 +214,35 @@ async def list_jobs(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
             "id": j["id"],
             "command": j["command"],
             "status": j.get("status", "pending"),
+            "exit_code": j.get("exit_code"),
             "machine_id": j.get("machine_id", ""),
+            "stdout": j.get("stdout", "") or "",
+            "stderr": j.get("stderr", "") or "",
             "duration_ms": duration_ms,
             "created_at": j.get("created_at")
         })
     return result
+
+@app.get("/api/jobs/{job_id}")
+async def get_job_detail(job_id: str, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    store: Store = app.state.store
+    j = await store.get_job(job_id)
+    if not j:
+        raise HTTPException(status_code=404, detail="Job not found")
+    duration_ms = 0
+    if j.get("completed_at") and j.get("started_at"):
+        duration_ms = int((j["completed_at"] - j["started_at"]) * 1000)
+    return {
+        "id": j["id"],
+        "command": j["command"],
+        "status": j.get("status", "pending"),
+        "exit_code": j.get("exit_code"),
+        "machine_id": j.get("machine_id", ""),
+        "stdout": j.get("stdout", "") or "",
+        "stderr": j.get("stderr", "") or "",
+        "duration_ms": duration_ms,
+        "created_at": j.get("created_at")
+    }
 
 @app.get("/api/sandboxes")
 async def list_sandboxes(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
@@ -324,7 +348,11 @@ async def daemon_ws(websocket: WebSocket):
                 await websocket.send_text(serialize_message(Pong(request_id=msg.request_id)))
             elif isinstance(msg, (ExecStdout, ExecStderr, ExecExit, ErrorMessage)):
                 if hasattr(msg, "request_id"):
-                    if isinstance(msg, ExecExit):
+                    if isinstance(msg, ExecStdout):
+                        await store.append_job_output(msg.request_id, stdout=msg.data)
+                    elif isinstance(msg, ExecStderr):
+                        await store.append_job_output(msg.request_id, stderr=msg.data)
+                    elif isinstance(msg, ExecExit):
                         status = "completed" if msg.exit_code == 0 else "failed"
                         await store.update_job_status(msg.request_id, status, exit_code=msg.exit_code)
                     await registry.fan_out(msg.request_id, msg_raw)
