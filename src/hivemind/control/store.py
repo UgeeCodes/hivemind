@@ -62,6 +62,8 @@ class Store:
                 status TEXT DEFAULT 'pending',  -- pending | running | completed | failed | timeout
                 exit_code INTEGER,
                 sandbox_id TEXT,
+                stdout TEXT DEFAULT '',
+                stderr TEXT DEFAULT '',
                 started_at REAL,
                 completed_at REAL,
                 created_at REAL NOT NULL,
@@ -92,6 +94,12 @@ class Store:
         for col_def in ['chip TEXT', 'cpu_cores INTEGER', 'ram_gb INTEGER', 'cpu_percent REAL', 'memory_percent REAL']:
             try:
                 await conn.execute(f'ALTER TABLE machines ADD COLUMN {col_def}')
+            except Exception:
+                pass
+        # Migrate existing jobs table to ensure output columns exist
+        for col_def in ['stdout TEXT DEFAULT ""', 'stderr TEXT DEFAULT ""']:
+            try:
+                await conn.execute(f'ALTER TABLE jobs ADD COLUMN {col_def}')
             except Exception:
                 pass
         await conn.commit()
@@ -324,6 +332,56 @@ class Store:
         await conn.execute(query, tuple(params))
         await conn.commit()
 
+        if status in ('completed', 'failed', 'timeout'):
+            await self.prune_jobs(keep=25)
+
+    async def append_job_output(
+        self,
+        job_id: str,
+        stdout: str = '',
+        stderr: str = '',
+        max_chars: int = 65536,
+    ) -> None:
+        """Append stdout and/or stderr to a job, capped at max_chars."""
+        if not stdout and not stderr:
+            return
+        conn = await self._get_conn()
+        if stdout:
+            await conn.execute(
+                '''
+                UPDATE jobs 
+                SET stdout = substr(COALESCE(stdout, '') || ?, -?)
+                WHERE id = ?
+                ''',
+                (stdout, max_chars, job_id)
+            )
+        if stderr:
+            await conn.execute(
+                '''
+                UPDATE jobs 
+                SET stderr = substr(COALESCE(stderr, '') || ?, -?)
+                WHERE id = ?
+                ''',
+                (stderr, max_chars, job_id)
+            )
+        await conn.commit()
+
+    async def prune_jobs(self, keep: int = 25) -> int:
+        """Prune old jobs to retain only the most recent `keep` runs."""
+        conn = await self._get_conn()
+        cursor = await conn.execute(
+            '''
+            DELETE FROM jobs 
+            WHERE id NOT IN (
+                SELECT id FROM jobs ORDER BY created_at DESC LIMIT ?
+            )
+            ''',
+            (keep,)
+        )
+        deleted = cursor.rowcount
+        await conn.commit()
+        return deleted
+
     async def get_job(self, job_id: str) -> dict[str, Any] | None:
         """Retrieve a job by its ID."""
         conn = await self._get_conn()
@@ -331,7 +389,7 @@ class Store:
             row = await cursor.fetchone()
             return self._row_to_dict(row)
 
-    async def list_jobs(self, machine_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    async def list_jobs(self, machine_id: str | None = None, limit: int = 25) -> list[dict[str, Any]]:
         """List recent jobs, optionally filtered by machine."""
         conn = await self._get_conn()
         query = 'SELECT * FROM jobs'
