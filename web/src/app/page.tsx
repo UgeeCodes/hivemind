@@ -65,6 +65,8 @@ export default function Dashboard() {
   const [quickRunCmd, setQuickRunCmd] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [activeTerminal, setActiveTerminal] = useState<ActiveTerminal | null>(null);
+  const [inspectedJob, setInspectedJob] = useState<Job | null>(null);
+  const [copied, setCopied] = useState(false);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
@@ -706,7 +708,9 @@ export default function Dashboard() {
         <div className="bg-[#121417] border border-[#1f2227] rounded-xl p-5">
           <div className="flex items-center justify-between text-xs text-[#8c929e] mb-4">
             <span className="text-white font-medium">Live activity</span>
-            <span className="text-xs text-[#6e7481]">All runs</span>
+            <span className="text-xs text-[#6e7481]">
+              Past 5 runs · click to inspect
+            </span>
           </div>
 
           {jobs.length === 0 ? (
@@ -717,10 +721,11 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="divide-y divide-[#1a1d22]">
-              {jobs.slice(0, 6).map((j) => (
+              {jobs.slice(0, 5).map((j) => (
                 <div
                   key={j.id}
-                  className="py-2.5 flex items-center justify-between gap-4 text-xs"
+                  onClick={() => setInspectedJob(j)}
+                  className="py-2.5 px-2 -mx-2 rounded-lg flex items-center justify-between gap-4 text-xs hover:bg-[#16181c] cursor-pointer transition-colors group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span
@@ -738,11 +743,18 @@ export default function Dashboard() {
                     <span className="font-mono text-neutral-200 truncate max-w-xs sm:max-w-md">
                       {j.command}
                     </span>
+                    {j.machine_id && (
+                      <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-[#16191e] border border-[#22262f] text-[10px] text-[#6d7380] font-mono">
+                        {j.machine_id}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 text-[11px] text-[#5c616d] font-mono shrink-0">
                     <span>{j.duration_ms ? `${j.duration_ms}ms` : "12ms"}</span>
-                    <span>17m ago</span>
+                    <span className="text-emerald-400/0 group-hover:text-emerald-400 transition-colors text-xs font-sans font-medium">
+                      Inspect →
+                    </span>
                   </div>
                 </div>
               ))}
@@ -750,6 +762,122 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+
+      {/* Run Inspection Modal */}
+      {inspectedJob && (
+        <div
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setInspectedJob(null)}
+        >
+          <div
+            className="bg-[#0e1013] border border-[#22252c] rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#131519] px-5 py-4 flex items-center justify-between border-b border-[#1f2228]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      inspectedJob.status === "completed"
+                        ? "bg-emerald-400"
+                        : inspectedJob.status === "running"
+                          ? "bg-blue-400 animate-pulse"
+                          : "bg-rose-400"
+                    }`}
+                  />
+                  <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                    {inspectedJob.status === "completed"
+                      ? "Succeeded"
+                      : inspectedJob.status}
+                  </span>
+                  {inspectedJob.exit_code !== undefined && (
+                    <span className="px-1.5 py-0.5 rounded bg-[#1b1e24] border border-[#272b34] text-[10px] font-mono text-[#8a919e]">
+                      Exit {inspectedJob.exit_code}
+                    </span>
+                  )}
+                  {inspectedJob.machine_id && (
+                    <span className="px-1.5 py-0.5 rounded bg-[#1b1e24] border border-[#272b34] text-[10px] font-mono text-[#8a919e]">
+                      {inspectedJob.machine_id}
+                    </span>
+                  )}
+                  {inspectedJob.duration_ms !== undefined && (
+                    <span className="text-[11px] text-[#6b717e] font-mono">
+                      · {inspectedJob.duration_ms}ms
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm font-mono text-white font-medium truncate">
+                  $ {inspectedJob.command}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setInspectedJob(null)}
+                className="w-8 h-8 rounded-lg bg-[#1a1d22] hover:bg-[#242830] border border-[#272a32] flex items-center justify-center text-[#8e95a3] hover:text-white transition-colors ml-4 shrink-0"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body / Terminal Viewer */}
+            <div className="p-5 flex-1 overflow-y-auto font-mono text-xs leading-relaxed text-[#d4d4d8] bg-[#090a0c]">
+              <div className="text-[#555a64] mb-3 select-none text-[11px]">
+                # Captured execution output:
+              </div>
+              {inspectedJob.stdout || inspectedJob.stderr ? (
+                <div className="space-y-2">
+                  {inspectedJob.stdout && (
+                    <pre className="whitespace-pre-wrap break-all text-[#e4e4e7] font-mono">
+                      {inspectedJob.stdout}
+                    </pre>
+                  )}
+                  {inspectedJob.stderr && (
+                    <pre className="whitespace-pre-wrap break-all text-rose-400 font-mono">
+                      {inspectedJob.stderr}
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-xs text-[#525761] border border-dashed border-[#1c1f24] rounded-lg">
+                  (Process completed without producing stdout or stderr)
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-[#131519] px-5 py-3 border-t border-[#1f2228] flex items-center justify-between text-xs">
+              <span className="text-[11px] text-[#646a77] font-mono truncate">
+                Job ID: {inspectedJob.id}
+              </span>
+              <div className="flex items-center gap-2">
+                {(inspectedJob.stdout || inspectedJob.stderr) && (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        (inspectedJob.stdout || "") +
+                          (inspectedJob.stderr || ""),
+                      );
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className="px-3 py-1 rounded-md bg-[#1c1f25] hover:bg-[#252932] border border-[#282d36] text-white text-xs font-medium transition-colors"
+                  >
+                    {copied ? "✓ Copied" : "Copy Output"}
+                  </button>
+                )}
+                <button
+                  onClick={() => setInspectedJob(null)}
+                  className="px-3 py-1 rounded-md bg-[#22262e] hover:bg-[#2d323c] text-white text-xs font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
