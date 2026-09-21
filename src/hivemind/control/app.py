@@ -69,6 +69,7 @@ class ExecRequestModel(BaseModel):
     sandbox_id: Optional[str] = None
     timeout: Optional[float] = None
     inherit_home: bool = False
+    backend: Optional[str] = "seatbelt"
 
 class TokenCreateModel(BaseModel):
     name: Optional[str] = None
@@ -195,7 +196,8 @@ async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]
         cwd=req.cwd,
         sandbox_id=req.sandbox_id,
         timeout=req.timeout,
-        inherit_home=req.inherit_home
+        inherit_home=req.inherit_home,
+        backend=req.backend or "seatbelt",
     )
     
     await registry.send_to_machine(machine_id, serialize_message(exec_msg))

@@ -37,6 +37,7 @@ def run(
     timeout: Optional[float] = typer.Option(None, '--timeout', help='Timeout in seconds'),
     sandbox: Optional[str] = typer.Option(None, '--sandbox', help='Sandbox ID'),
     real: bool = typer.Option(False, '--real', help='Use real HOME (not sandboxed)'),
+    backend: str = typer.Option('seatbelt', '-b', '--backend', help='Isolation backend (seatbelt or tart)'),
 ):
     """Run a command on a remote Mac."""
     from hivemind.sdk.client import mac as get_mac
@@ -44,8 +45,8 @@ def run(
     cmd = ' '.join(command)
     m = get_mac(machine_id=machine)
     
-    console.print(f'[dim]Running on {m.machine_id or "idlest machine"}...[/dim]')
-    result = m.run(cmd, timeout=timeout, sandbox_id=sandbox, inherit_home=real, stream=True)
+    console.print(f'[dim]Running on {m.machine_id or "idlest machine"} [{backend}]...[/dim]')
+    result = m.run(cmd, timeout=timeout, sandbox_id=sandbox, inherit_home=real, stream=True, backend=backend)
     
     if result.exit_code != 0:
         console.print(f'\n[red]✗ Exit code {result.exit_code}[/red] ({result.duration_s:.2f}s)')

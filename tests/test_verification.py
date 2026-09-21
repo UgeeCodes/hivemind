@@ -313,6 +313,48 @@ class TestJobOutputAndPruning(unittest.IsolatedAsyncioTestCase):
             await store.close()
 
 
+class TestExecRequestBackendPlumbing(unittest.TestCase):
+    """Verify ExecRequestModel and SDK serialization of isolation backend."""
+
+    def test_exec_request_model_defaults_and_custom(self):
+        from hivemind.control.app import ExecRequestModel
+
+        # Default is seatbelt
+        req_default = ExecRequestModel(command="echo hi")
+        self.assertEqual(req_default.backend, "seatbelt")
+
+        # Custom tart backend
+        req_tart = ExecRequestModel(command="echo tart", backend="tart")
+        self.assertEqual(req_tart.backend, "tart")
+
+    def test_app_exec_endpoint_receives_backend(self):
+        from unittest.mock import AsyncMock
+        from fastapi.testclient import TestClient
+        from hivemind.control.app import app
+        from hivemind.protocol.messages import parse_message
+
+        sent_messages = []
+        async def mock_send(machine_id, serialized_msg):
+            sent_messages.append((machine_id, parse_message(serialized_msg)))
+
+        with TestClient(app) as client:
+            app.state.registry.send_to_machine = mock_send
+            app.state.registry.register(
+                machine_id="mac_test_backend",
+                owner_id="default_owner",
+                hostname="test-host",
+                ws=AsyncMock(),
+            )
+
+            resp = client.post("/api/exec", json={"command": "echo test", "backend": "tart"})
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(len(sent_messages), 1)
+            mid, exec_msg = sent_messages[0]
+            self.assertEqual(mid, "mac_test_backend")
+            self.assertEqual(exec_msg.backend, "tart")
+            self.assertEqual(exec_msg.command, "echo test")
+
+
 if __name__ == "__main__":
     unittest.main()
 

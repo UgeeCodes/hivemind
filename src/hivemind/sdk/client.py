@@ -84,6 +84,7 @@ class Mac:
         timeout: float | None = None,
         inherit_home: bool = False,
         stream: bool = False,
+        backend: str = "seatbelt",
     ) -> Result:
         """Execute a command on this Mac.
         
@@ -95,6 +96,7 @@ class Mac:
             timeout: Timeout in seconds
             inherit_home: If True, use the real HOME directory
             stream: If True, print output as it arrives
+            backend: Isolation backend ('seatbelt' or 'tart')
         
         Returns:
             Result with stdout, stderr, exit_code, duration_s
@@ -114,6 +116,7 @@ class Mac:
                     'sandbox_id': sandbox_id,
                     'timeout': timeout,
                     'inherit_home': inherit_home,
+                    'backend': backend,
                 },
                 headers=headers,
             )
