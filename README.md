@@ -15,26 +15,26 @@ Hivemind is a programmable runtime for Apple Silicon. Connect one Mac or an enti
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                         YOUR CODE                                │
-│   Python SDK  ·  CLI  ·  MCP Server  ·  REST API                │
+│   Python SDK  ·  CLI  ·  MCP Server  ·  REST API                 │
 └──────────┬───────────────────────────────────────────────────────┘
            │  HTTPS / WebSocket
            ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                    CONTROL PLANE (FastAPI)                        │
+│                    CONTROL PLANE (FastAPI)                       │
 │   Auth · Job Queue · SQLite Store · WebSocket Fan-Out            │
 │   Dashboard (Next.js) on :3000                                   │
 └──────────┬───────────────────────────────────────────────────────┘
            │  WebSocket (persistent)
            ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                     MAC DAEMON (per machine)                      │
+│                     MAC DAEMON (per machine)                     │
 │   Heartbeat · Hardware Telemetry · Execution Engine              │
-│                                                                   │
+│                                                                  │
 │   ┌─────────────────────┐    ┌─────────────────────┐             │
-│   │   Seatbelt Backend  │    │    Tart Backend      │             │
-│   │  sandbox-exec(1)    │    │  Apple Virtualization │             │
-│   │  <50ms startup      │    │  Full macOS microVM   │             │
-│   │  Credential deny    │    │  Ephemeral clones     │             │
+│   │   Seatbelt Backend  │    │    Tart Backend      │            │
+│   │  sandbox-exec(1)    │    │  Apple Virtualization │           │
+│   │  <50ms startup      │    │  Full macOS microVM   │           │
+│   │  Credential deny    │    │  Ephemeral clones     │           │
 │   └─────────────────────┘    └─────────────────────┘             │
 └──────────────────────────────────────────────────────────────────┘
 ```
