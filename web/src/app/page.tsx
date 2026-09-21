@@ -64,7 +64,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [quickRunCmd, setQuickRunCmd] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
-  const [activeTerminal, setActiveTerminal] = useState<ActiveTerminal | null>(null);
+  const [activeTerminal, setActiveTerminal] = useState<ActiveTerminal | null>(
+    null,
+  );
   const [inspectedJob, setInspectedJob] = useState<Job | null>(null);
   const [copied, setCopied] = useState(false);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
@@ -137,7 +139,7 @@ export default function Dashboard() {
             setActiveTerminal((prev) =>
               prev && prev.jobId === jobId
                 ? { ...prev, output: prev.output + (msg.data || "") }
-                : prev
+                : prev,
             );
           } else if (msg.type === "exec_exit") {
             const isSuccess = msg.exit_code === 0;
@@ -151,7 +153,7 @@ export default function Dashboard() {
                       ? Math.round(msg.duration_s * 1000)
                       : undefined,
                   }
-                : prev
+                : prev,
             );
             fetchData();
           }
@@ -159,7 +161,7 @@ export default function Dashboard() {
           setActiveTerminal((prev) =>
             prev && prev.jobId === jobId
               ? { ...prev, output: prev.output + event.data }
-              : prev
+              : prev,
           );
         }
       };
@@ -332,7 +334,10 @@ export default function Dashboard() {
                   <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-sans">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     <span>
-                      Exit 0 {activeTerminal.durationMs ? `(${activeTerminal.durationMs}ms)` : ""}
+                      Exit 0{" "}
+                      {activeTerminal.durationMs
+                        ? `(${activeTerminal.durationMs}ms)`
+                        : ""}
                     </span>
                   </span>
                 ) : (
@@ -359,9 +364,13 @@ export default function Dashboard() {
                   {activeTerminal.output}
                 </pre>
               ) : activeTerminal.status === "running" ? (
-                <span className="text-[#555a65] animate-pulse">Waiting for output...</span>
+                <span className="text-[#555a65] animate-pulse">
+                  Waiting for output...
+                </span>
               ) : (
-                <span className="text-[#555a65] italic">(Process exited with no output)</span>
+                <span className="text-[#555a65] italic">
+                  (Process exited with no output)
+                </span>
               )}
               <div ref={terminalBottomRef} />
             </div>
