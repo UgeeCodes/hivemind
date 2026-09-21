@@ -15,7 +15,7 @@ Hivemind is a programmable runtime for Apple Silicon. Connect one Mac or an enti
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                         YOUR CODE                                │
-│   Python SDK  ·  CLI  ·  MCP Server  ·  REST API                 │
+│    Python SDK  ·  CLI  ·  MCP Server  ·  REST API                │
 └──────────┬───────────────────────────────────────────────────────┘
            │  HTTPS / WebSocket
            ▼
@@ -30,14 +30,60 @@ Hivemind is a programmable runtime for Apple Silicon. Connect one Mac or an enti
 │                     MAC DAEMON (per machine)                     │
 │   Heartbeat · Hardware Telemetry · Execution Engine              │
 │                                                                  │
-│   ┌─────────────────────┐    ┌─────────────────────┐             │
-│   │   Seatbelt Backend  │    │    Tart Backend      │            │
-│   │  sandbox-exec(1)    │    │  Apple Virtualization │           │
-│   │  <50ms startup      │    │  Full macOS microVM   │           │
-│   │  Credential deny    │    │  Ephemeral clones     │           │
-│   └─────────────────────┘    └─────────────────────┘             │
+│   ┌──────────────────────┐    ┌──────────────────────┐           │
+│   │   Seatbelt Backend   │    │     Tart Backend     │           │
+│   │   sandbox-exec(1)    │    │ Apple Virtualization │           │
+│   │   <50ms startup      │    │ Full macOS microVM   │           │
+│   │   Credential deny    │    │ Ephemeral clones     │           │
+│   └──────────────────────┘    └──────────────────────┘           │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+### How the Pieces Fit Together
+
+Hivemind is structured as a resilient three-tier distributed runtime:
+
+1. **Client Tier (SDK, CLI, MCP Server)**:
+   - Developers interact via Python (`import hivemind`), terminal commands (`hivemind run`), or AI assistants via MCP (`hivemind mcp`).
+   - Every execution request is dispatched via HTTP POST (`/api/exec`) to the control plane, returning an immediate `job_id`.
+   - The client then establishes a WebSocket connection to `/ws/stream/{job_id}` to receive live stdout, stderr, and exit code streams in real-time.
+
+2. **Control Plane (FastAPI + aiosqlite)**:
+   - **Central Coordination**: Tracks all registered machines, active jobs, and scoped authentication tokens.
+   - **Intelligent Routing**: Automatically schedules workloads to the idlest Mac by calculating CPU and memory pressure from live machine heartbeats, or routes to specific machines based on tags and hardware specs.
+   - **Event Fan-Out (`WSRegistry`)**: Buffers live output chunks and fans them out across multiple listening clients and dashboard observers simultaneously.
+
+3. **Daemon Node (macOS LaunchAgent)**:
+   - Runs on each Mac as a background LaunchAgent daemon (`hivemind child start`).
+   - Maintains an outbound persistent WebSocket connection (`/ws/daemon`) to the control plane. Because the connection is outbound, **no open inbound ports or public IP addresses are required**.
+   - Periodically samples host telemetry (Apple Silicon chip name, physical core count, RAM, CPU load, memory utilization) and sends heartbeats.
+   - Spawns requested commands inside isolated execution sandboxes and streams stdio chunks back across the WebSocket connection.
+
+---
+
+## Design Decisions
+
+### 1. Persistent Outbound WebSockets over SSH
+- **The Problem with SSH**: Traditional fleet management relies on SSH. This demands managing and rotating SSH keys on every host, configuring firewall rules, forwarding ports, and handling NAT traversal when Macs reside behind dynamic IPs or residential networks.
+- **The Hivemind Solution**: The daemon establishes an outbound WebSocket connection to the central control plane upon boot. The Mac can sit behind any NAT, VPN, or firewall without inbound exposure. Real-time bi-directional streaming is handled over a single persistent multiplexed socket.
+
+### 2. Dual Isolation Model: Seatbelt vs. Tart MicroVMs
+- **Process Isolation (`seatbelt`, Default)**:
+  - Leverages macOS's native `sandbox-exec(1)` kernel mechanism.
+  - Near-instant startup (<50ms) with zero memory footprint.
+  - Automatically isolates filesystem writes to the sandbox folder while hard-denying access to developer credential stores (`~/.ssh`, `~/.aws`, `~/.docker`, `~/.gnupg`, etc.), keeping host credentials safe even during arbitrary code execution.
+- **Hardware-Assisted MicroVMs (`tart`)**:
+  - Uses Apple Silicon's native Virtualization Framework via Tart.
+  - Each task executes inside a freshly cloned, fully isolated macOS guest VM.
+  - Complete kernel-level isolation with automatic post-execution teardown and cleanup. If Tart is unavailable on the host, Hivemind automatically falls back to Seatbelt with a stderr diagnostic notice.
+
+### 3. Keyless Agent Proxying
+- Running autonomous agents (like Claude Code or OpenAI Codex) directly on remote execution nodes typically risks exposing model API keys to the environment where code runs.
+- Hivemind decouples execution from model authorization: agent commands route LLM requests through a secure proxy URL (`--proxy`), ensuring that master API keys never reside on the worker Mac.
+
+### 4. Native macOS `launchd` Daemon
+- Rather than running ad-hoc background scripts or third-party process supervisors, Hivemind integrates with macOS's native `launchd` service architecture (`~/Library/LaunchAgents/`).
+- The daemon starts automatically on system boot, gracefully restarts on crash, and logs stdout/stderr to standard macOS application log directories.
 
 ---
 
@@ -78,11 +124,13 @@ hivemind machines
 ### 5. Run your first command
 
 **CLI:**
+
 ```bash
 hivemind run "sw_vers"
 ```
 
 **Python:**
+
 ```python
 import hivemind
 
@@ -104,6 +152,7 @@ Hivemind supports two isolation backends for sandboxed execution:
 The `seatbelt` backend uses macOS `sandbox-exec(1)` profiles for process-level isolation. It starts in under 50ms with zero overhead.
 
 **What it does:**
+
 - Allows reads globally (system libraries, toolchains)
 - Restricts file writes to the sandbox directory only
 - Blocks access to credential stores:
@@ -141,11 +190,13 @@ By default, commands run with an isolated `HOME` directory. Pass `--real` (CLI) 
 Hivemind ships an MCP server that gives AI assistants direct access to your Mac fleet. Available tools: `run`, `read_file`, `write_file`, `list_dir`, `screenshot`, `machines`.
 
 **Start the server:**
+
 ```bash
 hivemind mcp
 ```
 
 **Configure in Claude Desktop or Cursor** (`mcpServers`):
+
 ```jsonc
 "hivemind": {
   "command": "hivemind",
@@ -190,10 +241,10 @@ hivemind token revoke hm_sk_ab              # revoke by prefix
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|---|---|---|
-| `HIVEMIND_CONTROL_PLANE` | Control plane URL | `http://localhost:8000` |
-| `HIVEMIND_API_KEY` | API key for authentication | `hm_sk_default_admin_key` (local dev) |
+| Variable                 | Description                | Default                               |
+| ------------------------ | -------------------------- | ------------------------------------- |
+| `HIVEMIND_CONTROL_PLANE` | Control plane URL          | `http://localhost:8000`               |
+| `HIVEMIND_API_KEY`       | API key for authentication | `hm_sk_default_admin_key` (local dev) |
 
 Both the Python SDK and MCP server read these automatically.
 
@@ -203,43 +254,43 @@ Both the Python SDK and MCP server read these automatically.
 
 ### Top-Level Commands
 
-| Command | Description | Key Flags |
-|---|---|---|
-| `hivemind run "<cmd>"` | Execute a command on a remote Mac | `--machine`, `--timeout`, `--sandbox`, `--real`, `--backend` |
-| `hivemind machines` | List online machines in your fleet | — |
-| `hivemind shell` | Interactive remote REPL (Ctrl+D to exit) | `--machine` |
-| `hivemind status` | Show control plane URL and API key config | — |
-| `hivemind serve` | Start the control plane server | `--host`, `--port` |
-| `hivemind mcp` | Start the MCP server for AI assistants | — |
-| `hivemind agent "<prompt>"` | Run an AI agent on a remote Mac | `--proxy`, `--secret`, `--harness`, `--sandbox`, `--machine`, `--all` |
-| `hivemind skill` | Generate or install SKILL.md | `--install`, `--output` |
+| Command                     | Description                               | Key Flags                                                             |
+| --------------------------- | ----------------------------------------- | --------------------------------------------------------------------- |
+| `hivemind run "<cmd>"`      | Execute a command on a remote Mac         | `--machine`, `--timeout`, `--sandbox`, `--real`, `--backend`          |
+| `hivemind machines`         | List online machines in your fleet        | —                                                                     |
+| `hivemind shell`            | Interactive remote REPL (Ctrl+D to exit)  | `--machine`                                                           |
+| `hivemind status`           | Show control plane URL and API key config | —                                                                     |
+| `hivemind serve`            | Start the control plane server            | `--host`, `--port`                                                    |
+| `hivemind mcp`              | Start the MCP server for AI assistants    | —                                                                     |
+| `hivemind agent "<prompt>"` | Run an AI agent on a remote Mac           | `--proxy`, `--secret`, `--harness`, `--sandbox`, `--machine`, `--all` |
+| `hivemind skill`            | Generate or install SKILL.md              | `--install`, `--output`                                               |
 
 ### Daemon Management (`hivemind child`)
 
-| Command | Description | Key Flags |
-|---|---|---|
-| `hivemind child start` | Start daemon (connects Mac to control plane) | `--control-plane`, `--token`, `--tag`, `--foreground` |
-| `hivemind child stop` | Stop and uninstall the daemon | — |
-| `hivemind child status` | Check daemon running state and PID | — |
-| `hivemind child logs` | View daemon logs | `-f` (follow) |
+| Command                 | Description                                  | Key Flags                                             |
+| ----------------------- | -------------------------------------------- | ----------------------------------------------------- |
+| `hivemind child start`  | Start daemon (connects Mac to control plane) | `--control-plane`, `--token`, `--tag`, `--foreground` |
+| `hivemind child stop`   | Stop and uninstall the daemon                | —                                                     |
+| `hivemind child status` | Check daemon running state and PID           | —                                                     |
+| `hivemind child logs`   | View daemon logs                             | `-f` (follow)                                         |
 
 The daemon installs as a macOS LaunchAgent for automatic restart on reboot. Use `--foreground` to run in the current terminal for debugging.
 
 ### Token Management (`hivemind token`)
 
-| Command | Description |
-|---|---|
-| `hivemind token new <name>` | Create a new API token (`--scope admin\|run\|read`) |
-| `hivemind token ls` | List all API tokens |
-| `hivemind token revoke <prefix>` | Revoke a token by its prefix |
+| Command                          | Description                                         |
+| -------------------------------- | --------------------------------------------------- |
+| `hivemind token new <name>`      | Create a new API token (`--scope admin\|run\|read`) |
+| `hivemind token ls`              | List all API tokens                                 |
+| `hivemind token revoke <prefix>` | Revoke a token by its prefix                        |
 
 ### Volume Management (`hivemind volume`)
 
-| Command | Description |
-|---|---|
-| `hivemind volume ls` | List volumes (coming soon) |
+| Command                         | Description                   |
+| ------------------------------- | ----------------------------- |
+| `hivemind volume ls`            | List volumes (coming soon)    |
 | `hivemind volume create <name>` | Create a volume (coming soon) |
-| `hivemind volume rm <name>` | Remove a volume (coming soon) |
+| `hivemind volume rm <name>`     | Remove a volume (coming soon) |
 
 ---
 
@@ -273,6 +324,7 @@ print(result.machine_id)   # mac_0276ffc3
 ```
 
 **Full parameter list:**
+
 ```python
 result = mac.run(
     "swift build",
@@ -328,11 +380,13 @@ hivemind.configure(
 Hivemind includes a Next.js web dashboard (default: `http://localhost:3000`).
 
 **Overview Page:**
+
 - Live fleet status with hardware telemetry (chip, cores, RAM, CPU/memory load)
 - Quick Run terminal for executing commands from the browser
 - Run Inspector showing recent job history with stdout/stderr and exit codes
 
 **Tokens Page (`/tokens`):**
+
 - Create, list, and revoke API tokens from the browser
 
 ---
