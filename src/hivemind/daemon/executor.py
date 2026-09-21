@@ -70,6 +70,20 @@ class Executor:
             backend_name = "seatbelt"
             backend_instance = get_backend("seatbelt")
 
+        # Fallback to seatbelt if requested backend is not supported/installed on host
+        if not backend_instance.is_available():
+            fallback_msg = (
+                f"[hivemind] Notice: '{backend_name}' microVM driver not available on this host. "
+                "Falling back to 'seatbelt' isolation.\n"
+            )
+            logger.warning(
+                "Backend '%s' is not available on this host. Falling back to 'seatbelt'.",
+                backend_name,
+            )
+            await on_stderr(fallback_msg)
+            backend_name = "seatbelt"
+            backend_instance = get_backend("seatbelt")
+
         config = SandboxConfig(
             sandbox_id=sbx_id,
             env=env or {},
@@ -78,13 +92,17 @@ class Executor:
             inherit_home=inherit_home,
         )
 
-        res = await backend_instance.execute(
-            command=command,
-            request_id=request_id,
-            config=config,
-            on_stdout=on_stdout,
-            on_stderr=on_stderr,
-        )
+        try:
+            res = await backend_instance.execute(
+                command=command,
+                request_id=request_id,
+                config=config,
+                on_stdout=on_stdout,
+                on_stderr=on_stderr,
+            )
+        finally:
+            if sandbox_id is None and backend_name == "tart":
+                await backend_instance.teardown(sbx_id)
 
         return ExecResult(
             exit_code=res.exit_code,

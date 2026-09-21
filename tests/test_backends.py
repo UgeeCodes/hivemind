@@ -298,6 +298,34 @@ class TestExecutorDispatch(BaseBackendTestCase):
         self.assertEqual(res.backend_name, "seatbelt")
         self.assertIn("routing test", "".join(chunks))
 
+    async def test_executor_fallback_on_unavailable_tart(self):
+        from unittest.mock import patch
+
+        executor = Executor()
+        stdout_chunks = []
+        stderr_chunks = []
+
+        async def on_stdout(chunk: str):
+            stdout_chunks.append(chunk)
+
+        async def on_stderr(chunk: str):
+            stderr_chunks.append(chunk)
+
+        # Mock TartBackend.is_available returning False
+        with patch("hivemind.daemon.backends.tart.TartBackend.is_available", return_value=False):
+            res = await executor.execute(
+                command="echo 'tart fallback test'",
+                request_id="req_fallback_tart",
+                on_stdout=on_stdout,
+                on_stderr=on_stderr,
+                backend="tart",
+            )
+
+        self.assertEqual(res.exit_code, 0)
+        self.assertEqual(res.backend_name, "seatbelt")
+        self.assertIn("tart fallback test", "".join(stdout_chunks))
+        self.assertTrue(any("Notice: 'tart' microVM driver not available" in err for err in stderr_chunks))
+
     async def test_executor_fallback_on_invalid_backend(self):
         executor = Executor()
         chunks = []
