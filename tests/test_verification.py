@@ -31,6 +31,20 @@ class TestASTAndSyntax(unittest.TestCase):
                 except SyntaxError as e:
                     self.fail(f"Syntax error in {py_file}: {e}")
 
+    def test_example_scripts_compile(self):
+        examples_dir = PROJECT_ROOT / "examples"
+        py_files = list(examples_dir.rglob("*.py"))
+        self.assertGreaterEqual(len(py_files), 4, "Should have found example scripts")
+
+        for py_file in py_files:
+            with self.subTest(file=str(py_file.relative_to(PROJECT_ROOT))):
+                content = py_file.read_text(encoding="utf-8")
+                try:
+                    tree = ast.parse(content, filename=str(py_file))
+                    self.assertIsInstance(tree, ast.Module)
+                except SyntaxError as e:
+                    self.fail(f"Syntax error in {py_file}: {e}")
+
 
 class TestAuthModule(unittest.TestCase):
     """Verify auth functions and scope hierarchy."""
