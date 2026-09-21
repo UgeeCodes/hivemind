@@ -15,7 +15,7 @@ from rich import print as rprint
 console = Console()
 app = typer.Typer(
     name='hivemind',
-    help='Turn any Mac into a programmable runtime.',
+    help='Turn any Mac — or all of them — into a cloud.',
     no_args_is_help=True,
 )
 

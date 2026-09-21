@@ -117,7 +117,7 @@ Create top-tier developer documentation, quickstart guides, and architecture ref
 ### Scope
 
 1. **README.md Overhaul**:
-   - Clear value proposition: _"Modal, for your Macs."_
+   - Clear value proposition: _"Turn any Mac — or all of them — into a cloud."_
    - ASCII / SVG architecture diagrams.
    - 60-second Quickstart guide:
      1. Install: `pip install hivemind`

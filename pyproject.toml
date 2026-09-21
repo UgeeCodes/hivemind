@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "hivemind"
 version = "0.1.0"
-description = "Turn any Mac into a programmable runtime. Modal, for Macs."
+description = "Turn any Mac — or all of them — into a cloud."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
