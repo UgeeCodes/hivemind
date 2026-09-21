@@ -149,6 +149,101 @@ class TestTartBackend(BaseBackendTestCase):
             self.assertTrue(await backend.has_image("macos-base"))
             self.assertFalse(await backend.has_image("linux-ubuntu"))
 
+    async def test_tart_provision_missing_base_image_raises(self):
+        from unittest.mock import patch
+
+        backend = TartBackend(simulate=False, tart_bin="/usr/local/bin/tart", base_image="nonexistent-base")
+        backend._host_available = True
+
+        with patch.object(backend, "has_image", return_value=False):
+            config = SandboxConfig(sandbox_id="test_missing_img")
+            with self.assertRaises(RuntimeError) as ctx:
+                await backend.provision(config)
+            self.assertIn("not found on host", str(ctx.exception))
+
+    async def test_tart_real_lifecycle_mocked(self):
+        from unittest.mock import AsyncMock, patch, MagicMock
+
+        backend = TartBackend(simulate=False, tart_bin="/usr/local/bin/tart", base_image="macos-base")
+        backend._host_available = True
+
+        # Mock clone process
+        mock_clone_proc = AsyncMock()
+        mock_clone_proc.communicate.return_value = (b"", b"")
+        mock_clone_proc.returncode = 0
+
+        # Mock vm runner process
+        mock_vm_proc = AsyncMock()
+        mock_vm_proc.returncode = None
+        mock_vm_proc.terminate = MagicMock()
+        mock_vm_proc.kill = MagicMock()
+        mock_vm_proc.wait = AsyncMock(return_value=0)
+
+        # Mock ip readiness check process
+        mock_ip_proc = AsyncMock()
+        mock_ip_proc.communicate.return_value = (b"192.168.64.2\n", b"")
+        mock_ip_proc.returncode = 0
+
+        # Mock exec process
+        mock_exec_proc = AsyncMock()
+        mock_exec_proc.returncode = 0
+        mock_exec_proc.stdout = AsyncMock()
+        mock_exec_proc.stdout.read = AsyncMock(side_effect=[b"real vm stdout", b""])
+        mock_exec_proc.stderr = AsyncMock()
+        mock_exec_proc.stderr.read = AsyncMock(side_effect=[b""])
+        mock_exec_proc.wait = AsyncMock(return_value=0)
+
+        # Mock stop & delete processes
+        mock_stop_proc = AsyncMock()
+        mock_stop_proc.wait = AsyncMock(return_value=0)
+        mock_del_proc = AsyncMock()
+        mock_del_proc.wait = AsyncMock(return_value=0)
+
+        def mock_exec_dispatcher(*args, **kwargs):
+            cmd = args[1] if len(args) > 1 else ""
+            if cmd == "clone":
+                return mock_clone_proc
+            elif cmd == "run":
+                return mock_vm_proc
+            elif cmd == "ip":
+                return mock_ip_proc
+            elif cmd == "exec":
+                return mock_exec_proc
+            elif cmd == "stop":
+                return mock_stop_proc
+            elif cmd == "delete":
+                return mock_del_proc
+            return AsyncMock()
+
+        config = SandboxConfig(sandbox_id="test_real_001")
+        stdout_chunks = []
+
+        async def on_stdout(data: str):
+            stdout_chunks.append(data)
+
+        async def on_stderr(data: str):
+            pass
+
+        with patch.object(backend, "has_image", return_value=True), \
+             patch("asyncio.create_subprocess_exec", side_effect=mock_exec_dispatcher):
+            res = await backend.execute(
+                command="echo 'real vm stdout'",
+                request_id="req_real_001",
+                config=config,
+                on_stdout=on_stdout,
+                on_stderr=on_stderr,
+            )
+            self.assertEqual(res.exit_code, 0)
+            self.assertIn("real vm stdout", "".join(stdout_chunks))
+
+            # Verify VM process tracking
+            self.assertIn("test_real_001", backend._vm_processes)
+
+            # Teardown
+            await backend.teardown("test_real_001")
+            self.assertNotIn("test_real_001", backend._vm_processes)
+            mock_del_proc.wait.assert_awaited()
+
     async def test_tart_simulation_lifecycle(self):
         base_path = pathlib.Path(self.tmp_dir.name) / "tart_sim"
         backend = TartBackend(simulate=True, base_dir=base_path)

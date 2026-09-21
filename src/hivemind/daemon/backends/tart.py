@@ -136,6 +136,13 @@ class TartBackend(IsolationBackend):
             vm_mount.mkdir(parents=True, exist_ok=True)
             return vm_mount
 
+        # Check base image existence
+        if not await self.has_image(self.base_image):
+            raise RuntimeError(
+                f"Tart base image '{self.base_image}' not found on host. "
+                f"Available images: {await self.list_images()}"
+            )
+
         # Real Tart APFS clone: tart clone <base> <ephemeral>
         clone_cmd = [self.tart_bin, "clone", self.base_image, vm_name]
         logger.info("Cloning Tart VM: %s", " ".join(clone_cmd))
@@ -152,20 +159,17 @@ class TartBackend(IsolationBackend):
         # Start VM in headless background mode: tart run --no-graphics <ephemeral>
         run_cmd = [self.tart_bin, "run", "--no-graphics", vm_name]
         logger.info("Booting Tart VM: %s", " ".join(run_cmd))
-        asyncio.create_task(self._run_vm_process(run_cmd, vm_name))
+        vm_proc = await asyncio.create_subprocess_exec(
+            *run_cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        self._vm_processes[config.sandbox_id] = vm_proc
 
         # Wait for guest OS / SSH / agent readiness
         await self._wait_for_vm_ready(vm_name, timeout=30.0)
 
         return Path(f"/var/run/tart/{vm_name}")
-
-    async def _run_vm_process(self, run_cmd: List[str], vm_name: str) -> None:
-        """Keep the background VM runner process alive."""
-        try:
-            proc = await asyncio.create_subprocess_exec(*run_cmd)
-            await proc.wait()
-        except Exception as e:
-            logger.debug("Tart VM process %s finished: %s", vm_name, e)
 
     async def _wait_for_vm_ready(self, vm_name: str, timeout: float = 30.0) -> None:
         """Poll until VM IP and guest executor are responsive."""
@@ -295,6 +299,19 @@ class TartBackend(IsolationBackend):
                 stderr=asyncio.subprocess.DEVNULL
             )
             await stop_proc.wait()
+
+            # Ensure background tart run process is reaped
+            vm_proc = self._vm_processes.pop(sandbox_id, None)
+            if vm_proc:
+                try:
+                    if vm_proc.returncode is None:
+                        vm_proc.terminate()
+                        try:
+                            await asyncio.wait_for(vm_proc.wait(), timeout=3.0)
+                        except asyncio.TimeoutError:
+                            vm_proc.kill()
+                except ProcessLookupError:
+                    pass
 
             del_proc = await asyncio.create_subprocess_exec(
                 self.tart_bin, "delete", vm_name,
