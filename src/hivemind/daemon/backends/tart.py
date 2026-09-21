@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import platform
 import shutil
 import time
 from pathlib import Path
@@ -20,6 +21,28 @@ from hivemind.daemon.backends.base import BackendExecResult, IsolationBackend, S
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_IMAGE = os.environ.get("HIVEMIND_TART_BASE_IMAGE", "macos-base")
+
+TART_SEARCH_PATHS = [
+    "/opt/homebrew/bin/tart",
+    "/usr/local/bin/tart",
+    os.path.expanduser("~/.local/bin/tart"),
+]
+
+
+def find_tart_binary() -> Optional[str]:
+    """Discover the tart binary from PATH or standard macOS installation paths."""
+    which_path = shutil.which("tart")
+    if which_path and os.path.isfile(which_path) and os.access(which_path, os.X_OK):
+        return which_path
+    for p in TART_SEARCH_PATHS:
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    return None
+
+
+def is_apple_silicon() -> bool:
+    """Check if the current host architecture is Apple Silicon (arm64)."""
+    return platform.machine().lower() in ("arm64", "aarch64")
 
 
 def get_tart_sim_base() -> Path:
@@ -44,22 +67,55 @@ class TartBackend(IsolationBackend):
         self,
         base_image: str = DEFAULT_BASE_IMAGE,
         tart_bin: Optional[str] = None,
-        simulate: bool = False,
+        simulate: Optional[bool] = None,
         base_dir: Optional[Path] = None,
     ):
         self.base_image = base_image
-        self.tart_bin = tart_bin or shutil.which("tart") or "tart"
-        self.simulate = simulate or (shutil.which("tart") is None)
+        discovered_bin = find_tart_binary()
+        self.tart_bin = tart_bin or discovered_bin or "tart"
+        # Host availability requires tart binary and Apple Silicon
+        self._host_available = (bool(tart_bin) or (discovered_bin is not None)) and is_apple_silicon()
+        if simulate is None:
+            self.simulate = not self._host_available
+        else:
+            self.simulate = simulate
         self.base_dir = base_dir or get_tart_sim_base()
         self._running_vms: Dict[str, str] = {}  # sandbox_id -> vm_name
+        self._vm_processes: Dict[str, asyncio.subprocess.Process] = {}  # sandbox_id -> Process
 
     @property
     def name(self) -> str:
         return "tart"
 
     def is_available(self) -> bool:
-        """Tart requires Apple Silicon (arm64) and the tart CLI installed."""
-        return shutil.which("tart") is not None
+        """Tart requires Apple Silicon (arm64) and the tart CLI executable on the host."""
+        return self._host_available
+
+    async def list_images(self) -> List[str]:
+        """List local Tart VM images available on this Mac."""
+        if self.simulate or not self.is_available():
+            return [self.base_image]
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.tart_bin, "list", "-q",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                lines = [line.strip() for line in stdout.decode("utf-8", errors="replace").splitlines()]
+                return [line for line in lines if line]
+            logger.warning("Failed to list Tart images: %s", stderr.decode().strip())
+            return []
+        except Exception as e:
+            logger.warning("Error querying tart list: %s", e)
+            return []
+
+    async def has_image(self, image_name: str) -> bool:
+        """Check if a specific VM image exists locally in Tart."""
+        images = await self.list_images()
+        return image_name in images
 
     def _vm_name_for(self, sandbox_id: str) -> str:
         # Tart VM names must be alphanumeric/hyphens

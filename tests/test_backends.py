@@ -111,6 +111,44 @@ class TestSeatbeltBackend(BaseBackendTestCase):
 class TestTartBackend(BaseBackendTestCase):
     """Verify Tart backend lifecycle and simulation mode."""
 
+    async def test_find_tart_binary_and_arch_check(self):
+        from unittest.mock import patch
+        from hivemind.daemon.backends.tart import find_tart_binary, is_apple_silicon
+
+        # Test with mocked which
+        with patch("shutil.which", return_value="/opt/homebrew/bin/tart"), \
+             patch("os.path.isfile", return_value=True), \
+             patch("os.access", return_value=True):
+            self.assertEqual(find_tart_binary(), "/opt/homebrew/bin/tart")
+
+        # Test apple silicon check returns boolean
+        arch_res = is_apple_silicon()
+        self.assertIsInstance(arch_res, bool)
+
+    async def test_list_images_simulation(self):
+        base_path = pathlib.Path(self.tmp_dir.name) / "tart_sim"
+        backend = TartBackend(simulate=True, base_dir=base_path, base_image="macos-test")
+        images = await backend.list_images()
+        self.assertIn("macos-test", images)
+        self.assertTrue(await backend.has_image("macos-test"))
+        self.assertFalse(await backend.has_image("nonexistent-image"))
+
+    async def test_list_images_parsing(self):
+        from unittest.mock import AsyncMock, patch
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"macos-base\nmacos-sonoma\n", b"")
+        mock_proc.returncode = 0
+
+        backend = TartBackend(simulate=False, tart_bin="/usr/local/bin/tart")
+        backend._host_available = True
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            images = await backend.list_images()
+            self.assertEqual(images, ["macos-base", "macos-sonoma"])
+            self.assertTrue(await backend.has_image("macos-base"))
+            self.assertFalse(await backend.has_image("linux-ubuntu"))
+
     async def test_tart_simulation_lifecycle(self):
         base_path = pathlib.Path(self.tmp_dir.name) / "tart_sim"
         backend = TartBackend(simulate=True, base_dir=base_path)
