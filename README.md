@@ -64,10 +64,12 @@ Hivemind is structured as a resilient three-tier distributed runtime:
 ## Design Decisions
 
 ### 1. Persistent Outbound WebSockets over SSH
+
 - **The Problem with SSH**: Traditional fleet management relies on SSH. This demands managing and rotating SSH keys on every host, configuring firewall rules, forwarding ports, and handling NAT traversal when Macs reside behind dynamic IPs or residential networks.
 - **The Hivemind Solution**: The daemon establishes an outbound WebSocket connection to the central control plane upon boot. The Mac can sit behind any NAT, VPN, or firewall without inbound exposure. Real-time bi-directional streaming is handled over a single persistent multiplexed socket.
 
 ### 2. Dual Isolation Model: Seatbelt vs. Tart MicroVMs
+
 - **Process Isolation (`seatbelt`, Default)**:
   - Leverages macOS's native `sandbox-exec(1)` kernel mechanism.
   - Near-instant startup (<50ms) with zero memory footprint.
@@ -78,10 +80,12 @@ Hivemind is structured as a resilient three-tier distributed runtime:
   - Complete kernel-level isolation with automatic post-execution teardown and cleanup. If Tart is unavailable on the host, Hivemind automatically falls back to Seatbelt with a stderr diagnostic notice.
 
 ### 3. Keyless Agent Proxying
+
 - Running autonomous agents (like Claude Code or OpenAI Codex) directly on remote execution nodes typically risks exposing model API keys to the environment where code runs.
 - Hivemind decouples execution from model authorization: agent commands route LLM requests through a secure proxy URL (`--proxy`), ensuring that master API keys never reside on the worker Mac.
 
 ### 4. Native macOS `launchd` Daemon
+
 - Rather than running ad-hoc background scripts or third-party process supervisors, Hivemind integrates with macOS's native `launchd` service architecture (`~/Library/LaunchAgents/`).
 - The daemon starts automatically on system boot, gracefully restarts on crash, and logs stdout/stderr to standard macOS application log directories.
 
