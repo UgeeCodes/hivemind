@@ -252,6 +252,48 @@ async def list_sandboxes(auth_data: tuple[str, list[str]] = Depends(get_owner_id
     sandboxes = await store.list_sandboxes()
     return sandboxes
 
+@app.get("/api/sandboxes/count")
+async def sandbox_count(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    store: Store = app.state.store
+    return await store.count_all_sandboxes()
+
+@app.delete("/api/sandboxes/{sandbox_id}")
+async def destroy_sandbox(sandbox_id: str, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    store: Store = app.state.store
+    destroyed = await store.destroy_sandbox(sandbox_id)
+    if not destroyed:
+        raise HTTPException(status_code=404, detail="Sandbox not found or already destroyed")
+    return {"status": "destroyed"}
+
+class VolumeCreateModel(BaseModel):
+    name: str
+
+@app.get("/api/volumes")
+async def list_volumes(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    owner_id, _ = auth_data
+    store: Store = app.state.store
+    return await store.list_volumes(owner_id)
+
+@app.post("/api/volumes")
+async def create_volume(req: VolumeCreateModel, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    owner_id, _ = auth_data
+    store: Store = app.state.store
+    try:
+        await store.create_volume(req.name, owner_id)
+    except Exception:
+        raise HTTPException(status_code=409, detail="Volume already exists")
+    return {"name": req.name, "status": "created"}
+
+@app.delete("/api/volumes/{name}")
+async def delete_volume(name: str, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+    owner_id, _ = auth_data
+    store: Store = app.state.store
+    vol = await store.get_volume(name)
+    if not vol:
+        raise HTTPException(status_code=404, detail="Volume not found")
+    await store.delete_volume(name)
+    return {"status": "deleted"}
+
 @app.get("/api/exec/{job_id}/stream")
 async def stream_exec(job_id: str, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
     registry: WSRegistry = app.state.registry
