@@ -369,6 +369,101 @@ class TestExecRequestBackendPlumbing(unittest.TestCase):
             self.assertEqual(exec_msg.command, "echo test")
 
 
+class TestSandboxStoreOperations(unittest.IsolatedAsyncioTestCase):
+    """Verify sandbox registration, listing, destroy, and counting."""
+
+    async def test_sandbox_lifecycle_and_counts(self):
+        import tempfile
+        from pathlib import Path
+        from hivemind.control.store import Store
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "test.db")
+            store = Store(db_path=db_path)
+            await store.initialize()
+
+            # Empty initially
+            sandboxes = await store.list_sandboxes()
+            self.assertEqual(len(sandboxes), 0)
+            counts = await store.count_all_sandboxes()
+            self.assertEqual(counts["active"], 0)
+            self.assertEqual(counts["total"], 0)
+
+            # Register two sandboxes
+            await store.register_sandbox("sbx_1", "mac_1", name="dev-sandbox", dir_path="/tmp/sbx_1")
+            await store.register_sandbox("sbx_2", "mac_1", name="prod-sandbox", dir_path="/tmp/sbx_2")
+
+            sandboxes = await store.list_sandboxes()
+            self.assertEqual(len(sandboxes), 2)
+            counts = await store.count_all_sandboxes()
+            self.assertEqual(counts["active"], 2)
+            self.assertEqual(counts["total"], 2)
+
+            # Destroy one
+            destroyed = await store.destroy_sandbox("sbx_1")
+            self.assertTrue(destroyed)
+
+            # Idempotent / already destroyed
+            destroyed_again = await store.destroy_sandbox("sbx_1")
+            self.assertFalse(destroyed_again)
+
+            # Active list should only have sbx_2 now
+            active_sandboxes = await store.list_sandboxes()
+            self.assertEqual(len(active_sandboxes), 1)
+            self.assertEqual(active_sandboxes[0]["id"], "sbx_2")
+
+            # Counts should reflect 1 active and 2 total
+            counts = await store.count_all_sandboxes()
+            self.assertEqual(counts["active"], 1)
+            self.assertEqual(counts["total"], 2)
+
+            await store.close()
+
+
+class TestVolumeStoreOperations(unittest.IsolatedAsyncioTestCase):
+    """Verify volume creation, listing, retrieval, and deletion."""
+
+    async def test_volume_crud(self):
+        import tempfile
+        from pathlib import Path
+        from hivemind.control.store import Store
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "test.db")
+            store = Store(db_path=db_path)
+            await store.initialize()
+
+            # Initially empty
+            volumes = await store.list_volumes("owner_1")
+            self.assertEqual(len(volumes), 0)
+
+            # Create volumes
+            await store.create_volume("build-cache", "owner_1")
+            await store.create_volume("data-lake", "owner_1")
+
+            volumes = await store.list_volumes("owner_1")
+            self.assertEqual(len(volumes), 2)
+            names = {v["name"] for v in volumes}
+            self.assertEqual(names, {"build-cache", "data-lake"})
+
+            # Get single volume
+            vol = await store.get_volume("build-cache")
+            self.assertIsNotNone(vol)
+            self.assertEqual(vol["name"], "build-cache")
+            self.assertEqual(vol["owner_id"], "owner_1")
+
+            # Delete volume
+            await store.delete_volume("build-cache")
+            volumes_after = await store.list_volumes("owner_1")
+            self.assertEqual(len(volumes_after), 1)
+            self.assertEqual(volumes_after[0]["name"], "data-lake")
+
+            # Get deleted volume
+            self.assertIsNone(await store.get_volume("build-cache"))
+
+            await store.close()
+
+
 if __name__ == "__main__":
     unittest.main()
 
