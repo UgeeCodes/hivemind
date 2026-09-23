@@ -431,6 +431,28 @@ class Store:
             rows = await cursor.fetchall()
             return [self._row_to_dict(r) for r in rows if r is not None]  # type: ignore
 
+    async def destroy_sandbox(self, sandbox_id: str) -> bool:
+        """Mark a sandbox as destroyed (preserves audit history)."""
+        conn = await self._get_conn()
+        cursor = await conn.execute(
+            'UPDATE sandboxes SET status = "destroyed" WHERE id = ? AND status = "active"',
+            (sandbox_id,),
+        )
+        await conn.commit()
+        return cursor.rowcount > 0
+
+    async def count_all_sandboxes(self) -> dict[str, int]:
+        """Return active and total sandbox counts."""
+        conn = await self._get_conn()
+        async with conn.execute('SELECT COUNT(*) FROM sandboxes WHERE status = "active"') as cursor:
+            row = await cursor.fetchone()
+            active = row[0] if row else 0
+        async with conn.execute('SELECT COUNT(*) FROM sandboxes') as cursor:
+            row = await cursor.fetchone()
+            total = row[0] if row else 0
+        return {"active": active, "total": total}
+
+
     # Volume methods
     async def create_volume(self, name: str, owner_id: str) -> None:
         """Create a new volume."""
