@@ -17,16 +17,17 @@ Hivemind is a programmable runtime for Apple Silicon. Connect one Mac or an enti
 │                         YOUR CODE                                │
 │    Python SDK  ·  CLI  ·  MCP Server  ·  REST API                │
 └──────────┬───────────────────────────────────────────────────────┘
-           │  HTTPS / WebSocket
+           │  POST /api/exec (dispatch)
+           │  WS /ws/stream (live logs)
            ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                    CONTROL PLANE (FastAPI)                       │
 │   Auth · Job Queue · SQLite Store · WebSocket Fan-Out            │
 │   Dashboard (Next.js) on :3000                                   │
-└──────────┬───────────────────────────────────────────────────────┘
-           │  WebSocket (persistent)
-           ▼
-┌──────────────────────────────────────────────────────────────────┐
+└──────────▲───────────────────────────────────────────────────────┘
+           │  ▲ Mac connects outbound (dials home)
+           │  ▼ Multiplexed commands & stdout stream
+┌──────────┴───────────────────────────────────────────────────────┐
 │                     MAC DAEMON (per machine)                     │
 │   Heartbeat · Hardware Telemetry · Execution Engine              │
 │                                                                  │
