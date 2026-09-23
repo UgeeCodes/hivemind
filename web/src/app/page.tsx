@@ -61,6 +61,13 @@ export default function Dashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tokens, setTokens] = useState<ApiToken[]>([]);
   const [sandboxes, setSandboxes] = useState<Sandbox[]>([]);
+  const [volumes, setVolumes] = useState<
+    { name: string; size_bytes: number }[]
+  >([]);
+  const [sandboxCounts, setSandboxCounts] = useState<{
+    active: number;
+    total: number;
+  }>({ active: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [quickRunCmd, setQuickRunCmd] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
@@ -73,16 +80,22 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [mRes, jRes, tRes, sRes] = await Promise.all([
+      const [mRes, jRes, tRes, sRes, vRes, scRes] = await Promise.all([
         fetch(`${API_BASE}/api/machines`).then((r) => (r.ok ? r.json() : [])),
         fetch(`${API_BASE}/api/jobs`).then((r) => (r.ok ? r.json() : [])),
         fetch(`${API_BASE}/api/tokens`).then((r) => (r.ok ? r.json() : [])),
         fetch(`${API_BASE}/api/sandboxes`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`${API_BASE}/api/volumes`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`${API_BASE}/api/sandboxes/count`).then((r) =>
+          r.ok ? r.json() : { active: 0, total: 0 },
+        ),
       ]);
       setMachines(mRes);
       setJobs(jRes);
       setTokens(tRes);
       setSandboxes(sRes);
+      setVolumes(vRes);
+      setSandboxCounts(scRes);
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     } finally {
@@ -261,6 +274,18 @@ export default function Dashboard() {
           <span className="px-3 py-1 rounded-md bg-[#1e2126] text-white font-medium shadow-sm">
             Overview
           </span>
+          <a
+            href="/sandboxes"
+            className="px-3 py-1 rounded-md text-[#828894] hover:text-white transition-colors"
+          >
+            Sandboxes
+          </a>
+          <a
+            href="/volumes"
+            className="px-3 py-1 rounded-md text-[#828894] hover:text-white transition-colors"
+          >
+            Volumes
+          </a>
           <a
             href="/tokens"
             className="px-3 py-1 rounded-md text-[#828894] hover:text-white transition-colors"
@@ -608,25 +633,43 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Mini Counter Cards */}
           <div className="space-y-4">
-            <div className="bg-[#121417] border border-[#1f2227] rounded-xl p-4">
+            <a
+              href="/sandboxes"
+              className="block bg-[#121417] border border-[#1f2227] rounded-xl p-4 hover:border-[#2a2e35] transition-colors"
+            >
               <div className="text-[10px] uppercase tracking-wider text-[#6e7481] font-semibold">
                 LIVE SANDBOXES
               </div>
               <div className="text-2xl font-bold text-white mt-1">
                 {sandboxes.length}
               </div>
-              <div className="text-[11px] text-[#5c616d] mt-0.5">16 total</div>
-            </div>
+              <div className="text-[11px] text-[#5c616d] mt-0.5">
+                {sandboxCounts.total} total
+              </div>
+            </a>
 
-            <div className="bg-[#121417] border border-[#1f2227] rounded-xl p-4">
+            <a
+              href="/volumes"
+              className="block bg-[#121417] border border-[#1f2227] rounded-xl p-4 hover:border-[#2a2e35] transition-colors"
+            >
               <div className="text-[10px] uppercase tracking-wider text-[#6e7481] font-semibold">
                 VOLUMES
               </div>
-              <div className="text-2xl font-bold text-white mt-1">4</div>
-              <div className="text-[11px] text-[#5c616d] mt-0.5">986.9 KB</div>
-            </div>
+              <div className="text-2xl font-bold text-white mt-1">
+                {volumes.length}
+              </div>
+              <div className="text-[11px] text-[#5c616d] mt-0.5">
+                {volumes.reduce((sum, v) => sum + (v.size_bytes || 0), 0) <
+                1024 * 1024
+                  ? `${(volumes.reduce((sum, v) => sum + (v.size_bytes || 0), 0) / 1024).toFixed(1)} KB`
+                  : `${(volumes.reduce((sum, v) => sum + (v.size_bytes || 0), 0) / (1024 * 1024)).toFixed(1)} MB`}
+              </div>
+            </a>
 
-            <div className="bg-[#121417] border border-[#1f2227] rounded-xl p-4">
+            <a
+              href="/tokens"
+              className="block bg-[#121417] border border-[#1f2227] rounded-xl p-4 hover:border-[#2a2e35] transition-colors"
+            >
               <div className="text-[10px] uppercase tracking-wider text-[#6e7481] font-semibold">
                 SECRETS
               </div>
@@ -636,7 +679,7 @@ export default function Dashboard() {
               <div className="text-[11px] text-[#5c616d] mt-0.5">
                 at dispatch
               </div>
-            </div>
+            </a>
           </div>
 
           {/* Machines Card (3 Columns) */}
