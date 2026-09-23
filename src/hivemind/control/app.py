@@ -188,6 +188,15 @@ async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]
         command=req.command,
         sandbox_id=req.sandbox_id
     )
+
+    if req.sandbox_id:
+        sandbox_dir = f"~/.hivemind/sandboxes/{req.sandbox_id}"
+        await store.register_sandbox(
+            sandbox_id=req.sandbox_id,
+            machine_id=machine_id,
+            name=req.sandbox_id,
+            dir_path=sandbox_dir,
+        )
     
     exec_msg = ExecRequest(
         request_id=job_id,

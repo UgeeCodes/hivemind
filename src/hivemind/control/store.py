@@ -102,6 +102,19 @@ class Store:
                 await conn.execute(f'ALTER TABLE jobs ADD COLUMN {col_def}')
             except Exception:
                 pass
+
+        # Backfill any existing sandboxes from historical jobs
+        try:
+            await conn.execute('''
+                INSERT OR IGNORE INTO sandboxes (id, machine_id, name, dir_path, status, created_at, last_used_at)
+                SELECT sandbox_id, machine_id, sandbox_id, '~/.hivemind/sandboxes/' || sandbox_id, 'active', MIN(created_at), MAX(created_at)
+                FROM jobs
+                WHERE sandbox_id IS NOT NULL AND sandbox_id != ''
+                GROUP BY sandbox_id, machine_id
+            ''')
+        except Exception:
+            pass
+
         await conn.commit()
 
     async def close(self) -> None:
