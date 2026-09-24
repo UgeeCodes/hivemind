@@ -1,9 +1,12 @@
 from __future__ import annotations
 import asyncio
 import logging
+import os
 import platform
+import shutil
 import socket
 import time
+from pathlib import Path
 from uuid import uuid4
 
 import websockets
@@ -14,7 +17,7 @@ from hivemind.protocol.messages import (
     AuthRequest, AuthResponse, ExecRequest, ExecStdout, ExecStderr, ExecExit,
     SessionStart, SessionInput, SessionOutput, SessionClosed,
     FilePush, FilePull, FileData,
-    Ping, Pong, ErrorMessage,
+    Ping, Pong, ErrorMessage, SandboxDestroy,
 )
 from hivemind.daemon.executor import Executor
 from hivemind.daemon.hardware import get_hardware_specs, get_cpu_utilization, get_memory_utilization
@@ -122,11 +125,36 @@ class DaemonAgent:
             if isinstance(msg, ExecRequest):
                 # Run in background so we can handle multiple concurrent requests
                 asyncio.create_task(self._handle_exec_request(ws, msg))
+            elif isinstance(msg, SandboxDestroy):
+                asyncio.create_task(self._handle_sandbox_destroy(msg))
             elif isinstance(msg, Ping):
                 pong = Pong(request_id=msg.request_id)
                 await ws.send(serialize_message(pong))
             else:
                 logger.debug(f'Unhandled message type: {msg.type}')
+
+    async def _handle_sandbox_destroy(self, msg: SandboxDestroy) -> None:
+        """Physically delete a sandbox directory from disk."""
+        sandbox_base = Path(os.environ.get("HIVEMIND_HOME", str(Path.home() / ".hivemind"))) / "sandboxes"
+        sandbox_dir = sandbox_base / msg.sandbox_id
+
+        # Path traversal protection: ensure resolved path is inside sandbox_base
+        try:
+            resolved = sandbox_dir.resolve()
+            base_resolved = sandbox_base.resolve()
+            if not str(resolved).startswith(str(base_resolved) + os.sep):
+                logger.error(f'Sandbox destroy rejected: path traversal detected for {msg.sandbox_id!r}')
+                return
+        except Exception as e:
+            logger.error(f'Sandbox destroy path resolution error: {e}')
+            return
+
+        if sandbox_dir.exists():
+            shutil.rmtree(sandbox_dir)
+            logger.info(f'Sandbox {msg.sandbox_id!r} physically destroyed at {sandbox_dir}')
+        else:
+            logger.warning(f'Sandbox directory does not exist: {sandbox_dir}')
+
     
     async def _heartbeat_loop(self, ws) -> None:
         """Periodically stream resource telemetry (CPU/Memory %) to the control plane."""
