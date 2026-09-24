@@ -144,6 +144,14 @@ class Pong(Message):
     type: Literal['pong'] = 'pong'
 
 
+
+# Sandbox management
+class SandboxDestroy(Message):
+    """Sent from control plane to daemon to tear down a sandbox directory."""
+    type: Literal['sandbox_destroy'] = 'sandbox_destroy'
+    sandbox_id: str
+
+
 # Error
 class ErrorMessage(Message):
     """Sent when an error occurs."""
@@ -170,6 +178,7 @@ AnyMessage = Annotated[
         FileData,
         Ping,
         Pong,
+        SandboxDestroy,
         ErrorMessage,
     ],
     Field(discriminator='type')
