@@ -464,6 +464,118 @@ class TestVolumeStoreOperations(unittest.IsolatedAsyncioTestCase):
             await store.close()
 
 
+class TestSandboxDestroyProtocol(unittest.TestCase):
+    """Verify SandboxDestroy message serialization and parsing."""
+
+    def test_sandbox_destroy_roundtrip(self):
+        from hivemind.protocol.messages import SandboxDestroy, parse_message, serialize_message
+
+        msg = SandboxDestroy(sandbox_id="test-sbx-123")
+        self.assertEqual(msg.type, "sandbox_destroy")
+        self.assertEqual(msg.sandbox_id, "test-sbx-123")
+
+        # Roundtrip: serialize -> parse
+        raw = serialize_message(msg)
+        parsed = parse_message(raw)
+        self.assertIsInstance(parsed, SandboxDestroy)
+        self.assertEqual(parsed.sandbox_id, "test-sbx-123")
+
+
+class TestSandboxPhysicalTeardown(unittest.IsolatedAsyncioTestCase):
+    """Verify daemon physical sandbox directory teardown and path traversal protection."""
+
+    async def test_physical_teardown_deletes_directory(self):
+        import tempfile
+        import os
+        from pathlib import Path
+        from hivemind.daemon.agent import DaemonAgent
+        from hivemind.protocol.messages import SandboxDestroy
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a fake sandbox directory structure
+            sandbox_base = Path(tmpdir) / "sandboxes"
+            sandbox_dir = sandbox_base / "my-sandbox"
+            workspace = sandbox_dir / "workspace"
+            workspace.mkdir(parents=True)
+            (workspace / "file.txt").write_text("hello")
+            self.assertTrue(sandbox_dir.exists())
+
+            # Create agent and invoke the handler with HIVEMIND_HOME pointing to tmpdir
+            agent = DaemonAgent.__new__(DaemonAgent)
+            old_env = os.environ.get("HIVEMIND_HOME")
+            os.environ["HIVEMIND_HOME"] = tmpdir
+            try:
+                msg = SandboxDestroy(sandbox_id="my-sandbox")
+                await agent._handle_sandbox_destroy(msg)
+            finally:
+                if old_env is None:
+                    os.environ.pop("HIVEMIND_HOME", None)
+                else:
+                    os.environ["HIVEMIND_HOME"] = old_env
+
+            # Directory should be gone
+            self.assertFalse(sandbox_dir.exists())
+
+    async def test_path_traversal_rejected(self):
+        import tempfile
+        import os
+        from pathlib import Path
+        from hivemind.daemon.agent import DaemonAgent
+        from hivemind.protocol.messages import SandboxDestroy
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a directory outside of sandboxes that should NOT be deleted
+            safe_dir = Path(tmpdir) / "safe"
+            safe_dir.mkdir()
+            (safe_dir / "important.txt").write_text("do not delete")
+
+            sandbox_base = Path(tmpdir) / "sandboxes"
+            sandbox_base.mkdir()
+
+            agent = DaemonAgent.__new__(DaemonAgent)
+            old_env = os.environ.get("HIVEMIND_HOME")
+            os.environ["HIVEMIND_HOME"] = tmpdir
+            try:
+                # Attempt path traversal
+                msg = SandboxDestroy(sandbox_id="../safe")
+                await agent._handle_sandbox_destroy(msg)
+            finally:
+                if old_env is None:
+                    os.environ.pop("HIVEMIND_HOME", None)
+                else:
+                    os.environ["HIVEMIND_HOME"] = old_env
+
+            # The safe directory should still exist (traversal blocked)
+            self.assertTrue(safe_dir.exists())
+            self.assertTrue((safe_dir / "important.txt").exists())
+
+
+class TestGetSandboxStore(unittest.IsolatedAsyncioTestCase):
+    """Verify get_sandbox store method."""
+
+    async def test_get_sandbox_returns_record(self):
+        import tempfile
+        from pathlib import Path
+        from hivemind.control.store import Store
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "test.db")
+            store = Store(db_path=db_path)
+            await store.initialize()
+
+            await store.register_sandbox("sbx-lookup", "mac-1", name="lookup-test", dir_path="/tmp/sbx-lookup")
+
+            result = await store.get_sandbox("sbx-lookup")
+            self.assertIsNotNone(result)
+            self.assertEqual(result["id"], "sbx-lookup")
+            self.assertEqual(result["machine_id"], "mac-1")
+
+            # Non-existent
+            self.assertIsNone(await store.get_sandbox("nonexistent"))
+
+            await store.close()
+
+
 if __name__ == "__main__":
     unittest.main()
 
