@@ -18,7 +18,7 @@ from hivemind.control.ws_registry import WSRegistry
 from hivemind.protocol.messages import (
     parse_message, serialize_message,
     AuthRequest, AuthResponse, ExecRequest, ExecStdout, ExecStderr, ExecExit,
-    ErrorMessage, Ping, Pong,
+    ErrorMessage, Ping, Pong, SandboxDestroy,
 )
 
 logger = logging.getLogger(__name__)
@@ -269,9 +269,27 @@ async def sandbox_count(auth_data: tuple[str, list[str]] = Depends(get_owner_id)
 @app.delete("/api/sandboxes/{sandbox_id}")
 async def destroy_sandbox(sandbox_id: str, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
     store: Store = app.state.store
+    registry: WSRegistry = app.state.registry
+
+    # Look up sandbox to find its hosting machine
+    sandbox = await store.get_sandbox(sandbox_id)
+
     destroyed = await store.destroy_sandbox(sandbox_id)
     if not destroyed:
         raise HTTPException(status_code=404, detail="Sandbox not found or already destroyed")
+
+    # Dispatch physical teardown to the hosting daemon if it's online
+    if sandbox and sandbox.get("machine_id"):
+        machine_id = sandbox["machine_id"]
+        machine = registry.get(machine_id)
+        if machine:
+            destroy_msg = SandboxDestroy(sandbox_id=sandbox_id)
+            try:
+                await registry.send_to_machine(machine_id, serialize_message(destroy_msg))
+                logger.info(f"Dispatched SandboxDestroy for {sandbox_id!r} to {machine_id}")
+            except Exception as e:
+                logger.warning(f"Failed to dispatch SandboxDestroy to {machine_id}: {e}")
+
     return {"status": "destroyed"}
 
 class VolumeCreateModel(BaseModel):

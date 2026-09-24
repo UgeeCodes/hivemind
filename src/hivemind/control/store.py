@@ -431,6 +431,13 @@ class Store:
         ''', (sandbox_id, machine_id, name, dir_path, now, now))
         await conn.commit()
 
+    async def get_sandbox(self, sandbox_id: str) -> dict[str, Any] | None:
+        """Retrieve a sandbox by its ID."""
+        conn = await self._get_conn()
+        async with conn.execute('SELECT * FROM sandboxes WHERE id = ?', (sandbox_id,)) as cursor:
+            row = await cursor.fetchone()
+            return self._row_to_dict(row)
+
     async def list_sandboxes(self, machine_id: str | None = None) -> list[dict[str, Any]]:
         """List sandboxes, optionally filtered by machine."""
         conn = await self._get_conn()
