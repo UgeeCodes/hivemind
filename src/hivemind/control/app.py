@@ -256,9 +256,12 @@ async def get_job_detail(job_id: str, auth_data: tuple[str, list[str]] = Depends
     }
 
 @app.get("/api/sandboxes")
-async def list_sandboxes(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+async def list_sandboxes(
+    include_destroyed: bool = False,
+    auth_data: tuple[str, list[str]] = Depends(get_owner_id),
+):
     store: Store = app.state.store
-    sandboxes = await store.list_sandboxes()
+    sandboxes = await store.list_sandboxes(include_destroyed=include_destroyed)
     return sandboxes
 
 @app.get("/api/sandboxes/count")

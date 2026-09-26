@@ -438,16 +438,27 @@ class Store:
             row = await cursor.fetchone()
             return self._row_to_dict(row)
 
-    async def list_sandboxes(self, machine_id: str | None = None) -> list[dict[str, Any]]:
-        """List sandboxes, optionally filtered by machine."""
+    async def list_sandboxes(
+        self,
+        machine_id: str | None = None,
+        include_destroyed: bool = False,
+    ) -> list[dict[str, Any]]:
+        """List sandboxes, optionally filtered by machine and destroyed status."""
         conn = await self._get_conn()
-        query = 'SELECT * FROM sandboxes WHERE status = "active"'
-        params: tuple[Any, ...] = ()
+        clauses = []
+        params: list[Any] = []
+        if not include_destroyed:
+            clauses.append('status = "active"')
         if machine_id:
-            query += ' AND machine_id = ?'
-            params = (machine_id,)
+            clauses.append('machine_id = ?')
+            params.append(machine_id)
+
+        query = 'SELECT * FROM sandboxes'
+        if clauses:
+            query += ' WHERE ' + ' AND '.join(clauses)
         query += ' ORDER BY created_at DESC'
-        async with conn.execute(query, params) as cursor:
+
+        async with conn.execute(query, tuple(params)) as cursor:
             rows = await cursor.fetchall()
             return [self._row_to_dict(r) for r in rows if r is not None]  # type: ignore
 
