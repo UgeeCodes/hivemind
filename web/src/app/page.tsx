@@ -762,7 +762,8 @@ export default function Dashboard() {
           <div className="flex items-center justify-between text-xs text-[#8c929e] mb-4">
             <span className="text-white font-medium">Live activity</span>
             <span className="text-xs text-[#6e7481]">
-              Showing {Math.min(visibleRunsCount, jobs.length)} of {jobs.length} runs · click to inspect
+              Showing {Math.min(visibleRunsCount, jobs.length)} of {jobs.length}{" "}
+              runs · click to inspect
             </span>
           </div>
 
@@ -805,7 +806,9 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex items-center gap-4 text-[11px] text-[#5c616d] font-mono shrink-0">
-                      <span>{j.duration_ms ? `${j.duration_ms}ms` : "12ms"}</span>
+                      <span>
+                        {j.duration_ms ? `${j.duration_ms}ms` : "12ms"}
+                      </span>
                       <span className="text-emerald-400/0 group-hover:text-emerald-400 transition-colors text-xs font-sans font-medium">
                         Inspect →
                       </span>
@@ -822,11 +825,13 @@ export default function Dashboard() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181a1f] hover:bg-[#20232a] text-[#a0a6b2] hover:text-white transition-colors font-medium border border-[#22262e]"
                     >
                       <span>Load more</span>
-                      <span className="text-emerald-400 font-mono text-[11px]">+5 runs</span>
+                      <span className="text-emerald-400 font-mono text-[11px]">
+                        +5 runs
+                      </span>
                     </button>
                   ) : (
                     <span className="text-[11px] text-[#555a64]">
-                      All {jobs.length} runs loaded
+                      All last {jobs.length} runs loaded
                     </span>
                   )}
 

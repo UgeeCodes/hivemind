@@ -23,7 +23,7 @@ export default function SandboxesPage() {
   const fetchSandboxes = async () => {
     try {
       const res = await fetch(
-        `${API_BASE}/api/sandboxes?include_destroyed=${filter === "all"}`
+        `${API_BASE}/api/sandboxes?include_destroyed=${filter === "all"}`,
       );
       if (res.ok) {
         setSandboxes(await res.json());
