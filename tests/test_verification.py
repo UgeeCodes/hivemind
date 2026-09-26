@@ -423,6 +423,13 @@ class TestSandboxStoreOperations(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(counts["active"], 1)
             self.assertEqual(counts["total"], 2)
 
+            # Re-registering / running on destroyed sbx_1 should reactivate it to active
+            await store.register_sandbox("sbx_1", "mac_1")
+            active_after_reregister = await store.list_sandboxes()
+            self.assertEqual(len(active_after_reregister), 2)
+            sbx_1_record = await store.get_sandbox("sbx_1")
+            self.assertEqual(sbx_1_record["status"], "active")
+
             await store.close()
 
 

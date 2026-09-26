@@ -425,9 +425,11 @@ class Store:
         conn = await self._get_conn()
         now = time.time()
         await conn.execute('''
-            INSERT INTO sandboxes (id, machine_id, name, dir_path, created_at, last_used_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET last_used_at = excluded.last_used_at
+            INSERT INTO sandboxes (id, machine_id, name, dir_path, created_at, last_used_at, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'active')
+            ON CONFLICT(id) DO UPDATE SET 
+                last_used_at = excluded.last_used_at,
+                status = 'active'
         ''', (sandbox_id, machine_id, name, dir_path, now, now))
         await conn.commit()
 
