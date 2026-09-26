@@ -213,9 +213,9 @@ async def execute_command(req: ExecRequestModel, auth_data: tuple[str, list[str]
     return {"job_id": job_id, "machine_id": machine_id, "status": "submitted"}
 
 @app.get("/api/jobs")
-async def list_jobs(auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
+async def list_jobs(limit: int = 50, auth_data: tuple[str, list[str]] = Depends(get_owner_id)):
     store: Store = app.state.store
-    jobs = await store.list_jobs(limit=25)
+    jobs = await store.list_jobs(limit=limit)
     result = []
     for j in jobs:
         duration_ms = 0

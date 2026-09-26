@@ -622,6 +622,35 @@ class TestSandboxAPIIncludeDestroyed(unittest.TestCase):
             self.assertIn("sbx_api_2", all_ids)
 
 
+class TestJobListLimit(unittest.TestCase):
+    """Verify /api/jobs endpoint respects limit parameter."""
+
+    def test_jobs_limit(self):
+        from fastapi.testclient import TestClient
+        from hivemind.control.app import app
+        import asyncio
+
+        with TestClient(app) as client:
+            store = app.state.store
+            # Create a test machine and 5 jobs
+            asyncio.run(store.register_machine(
+                machine_id="mac_jobs_test",
+                hostname="jobs-mac",
+                arch="arm64",
+                os_version="15.0",
+                device_token_hash="hash_jobs",
+                owner_id="owner_test",
+            ))
+            for i in range(5):
+                asyncio.run(store.create_job(f"job_limit_{i}", "mac_jobs_test", f"echo {i}"))
+
+            # Limit to 2
+            resp = client.get("/api/jobs?limit=2")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertLessEqual(len(data), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
 
