@@ -18,10 +18,13 @@ interface Sandbox {
 export default function SandboxesPage() {
   const [sandboxes, setSandboxes] = useState<Sandbox[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"active" | "all">("active");
 
   const fetchSandboxes = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/sandboxes`);
+      const res = await fetch(
+        `${API_BASE}/api/sandboxes?include_destroyed=${filter === "all"}`
+      );
       if (res.ok) {
         setSandboxes(await res.json());
       }
@@ -33,7 +36,9 @@ export default function SandboxesPage() {
 
   useEffect(() => {
     fetchSandboxes();
-  }, []);
+    const interval = setInterval(fetchSandboxes, 3000);
+    return () => clearInterval(interval);
+  }, [filter]);
 
   const handleDestroy = async (id: string) => {
     if (!confirm("Are you sure you want to destroy this sandbox?")) return;
@@ -76,11 +81,35 @@ export default function SandboxesPage() {
           ))}
         </div>
 
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Sandboxes</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Isolated execution environments across your Mac fleet
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Sandboxes</h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              Isolated execution environments across your Mac fleet
+            </p>
+          </div>
+          <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-lg p-0.5 text-xs">
+            <button
+              onClick={() => setFilter("active")}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                filter === "active"
+                  ? "bg-neutral-800 text-white shadow-sm"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                filter === "all"
+                  ? "bg-neutral-800 text-white shadow-sm"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              All
+            </button>
+          </div>
         </div>
 
         {/* Sandbox Table */}

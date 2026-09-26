@@ -33,6 +33,8 @@ export default function VolumesPage() {
 
   useEffect(() => {
     fetchVolumes();
+    const interval = setInterval(fetchVolumes, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
