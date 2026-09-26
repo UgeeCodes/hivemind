@@ -412,12 +412,19 @@ class TestSandboxStoreOperations(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(active_sandboxes), 1)
             self.assertEqual(active_sandboxes[0]["id"], "sbx_2")
 
+            # include_destroyed=True should return both sbx_1 and sbx_2
+            all_sandboxes = await store.list_sandboxes(include_destroyed=True)
+            self.assertEqual(len(all_sandboxes), 2)
+            ids = {s["id"] for s in all_sandboxes}
+            self.assertEqual(ids, {"sbx_1", "sbx_2"})
+
             # Counts should reflect 1 active and 2 total
             counts = await store.count_all_sandboxes()
             self.assertEqual(counts["active"], 1)
             self.assertEqual(counts["total"], 2)
 
             await store.close()
+
 
 
 class TestVolumeStoreOperations(unittest.IsolatedAsyncioTestCase):
@@ -574,6 +581,38 @@ class TestGetSandboxStore(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await store.get_sandbox("nonexistent"))
 
             await store.close()
+
+
+class TestSandboxAPIIncludeDestroyed(unittest.TestCase):
+    """Verify /api/sandboxes endpoint respects include_destroyed parameter."""
+
+    def test_api_include_destroyed_query(self):
+        from fastapi.testclient import TestClient
+        from hivemind.control.app import app
+        import asyncio
+
+        with TestClient(app) as client:
+            store = app.state.store
+            # Register two sandboxes
+            asyncio.run(store.register_sandbox("sbx_api_1", "mac_1", name="api-sbx-1", dir_path="/tmp/sbx_api_1"))
+            asyncio.run(store.register_sandbox("sbx_api_2", "mac_1", name="api-sbx-2", dir_path="/tmp/sbx_api_2"))
+            asyncio.run(store.destroy_sandbox("sbx_api_1"))
+
+            # Default (include_destroyed=False): only active
+            resp = client.get("/api/sandboxes")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            active_ids = [s["id"] for s in data]
+            self.assertIn("sbx_api_2", active_ids)
+            self.assertNotIn("sbx_api_1", active_ids)
+
+            # include_destroyed=true: both active and destroyed
+            resp_all = client.get("/api/sandboxes?include_destroyed=true")
+            self.assertEqual(resp_all.status_code, 200)
+            data_all = resp_all.json()
+            all_ids = [s["id"] for s in data_all]
+            self.assertIn("sbx_api_1", all_ids)
+            self.assertIn("sbx_api_2", all_ids)
 
 
 if __name__ == "__main__":
