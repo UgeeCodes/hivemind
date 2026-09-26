@@ -629,6 +629,7 @@ class TestJobListLimit(unittest.TestCase):
         from fastapi.testclient import TestClient
         from hivemind.control.app import app
         import asyncio
+        import uuid
 
         with TestClient(app) as client:
             store = app.state.store
@@ -642,7 +643,7 @@ class TestJobListLimit(unittest.TestCase):
                 owner_id="owner_test",
             ))
             for i in range(5):
-                asyncio.run(store.create_job(f"job_limit_{i}", "mac_jobs_test", f"echo {i}"))
+                asyncio.run(store.create_job(f"job_limit_{uuid.uuid4().hex[:8]}", "mac_jobs_test", f"echo {i}"))
 
             # Limit to 2
             resp = client.get("/api/jobs?limit=2")

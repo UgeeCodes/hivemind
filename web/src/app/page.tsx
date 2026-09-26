@@ -76,6 +76,7 @@ export default function Dashboard() {
   );
   const [inspectedJob, setInspectedJob] = useState<Job | null>(null);
   const [copied, setCopied] = useState(false);
+  const [visibleRunsCount, setVisibleRunsCount] = useState(5);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
@@ -761,7 +762,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between text-xs text-[#8c929e] mb-4">
             <span className="text-white font-medium">Live activity</span>
             <span className="text-xs text-[#6e7481]">
-              Past 5 runs · click to inspect
+              Showing {Math.min(visibleRunsCount, jobs.length)} of {jobs.length} runs · click to inspect
             </span>
           </div>
 
@@ -772,44 +773,73 @@ export default function Dashboard() {
               Run above.
             </div>
           ) : (
-            <div className="divide-y divide-[#1a1d22]">
-              {jobs.slice(0, 5).map((j) => (
-                <div
-                  key={j.id}
-                  onClick={() => setInspectedJob(j)}
-                  className="py-2.5 px-2 -mx-2 rounded-lg flex items-center justify-between gap-4 text-xs hover:bg-[#16181c] cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                        j.status === "completed"
-                          ? "bg-emerald-400"
-                          : j.status === "running"
-                            ? "bg-blue-400 animate-pulse"
-                            : "bg-rose-400"
-                      }`}
-                    />
-                    <span className="text-[#a0a6b2] font-medium capitalize">
-                      {j.status === "completed" ? "succeeded" : j.status}
-                    </span>
-                    <span className="font-mono text-neutral-200 truncate max-w-xs sm:max-w-md">
-                      {j.command}
-                    </span>
-                    {j.machine_id && (
-                      <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-[#16191e] border border-[#22262f] text-[10px] text-[#6d7380] font-mono">
-                        {j.machine_id}
+            <div>
+              <div className="divide-y divide-[#1a1d22]">
+                {jobs.slice(0, visibleRunsCount).map((j) => (
+                  <div
+                    key={j.id}
+                    onClick={() => setInspectedJob(j)}
+                    className="py-2.5 px-2 -mx-2 rounded-lg flex items-center justify-between gap-4 text-xs hover:bg-[#16181c] cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          j.status === "completed"
+                            ? "bg-emerald-400"
+                            : j.status === "running"
+                              ? "bg-blue-400 animate-pulse"
+                              : "bg-rose-400"
+                        }`}
+                      />
+                      <span className="text-[#a0a6b2] font-medium capitalize">
+                        {j.status === "completed" ? "succeeded" : j.status}
                       </span>
-                    )}
-                  </div>
+                      <span className="font-mono text-neutral-200 truncate max-w-xs sm:max-w-md">
+                        {j.command}
+                      </span>
+                      {j.machine_id && (
+                        <span className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-[#16191e] border border-[#22262f] text-[10px] text-[#6d7380] font-mono">
+                          {j.machine_id}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex items-center gap-4 text-[11px] text-[#5c616d] font-mono shrink-0">
-                    <span>{j.duration_ms ? `${j.duration_ms}ms` : "12ms"}</span>
-                    <span className="text-emerald-400/0 group-hover:text-emerald-400 transition-colors text-xs font-sans font-medium">
-                      Inspect →
-                    </span>
+                    <div className="flex items-center gap-4 text-[11px] text-[#5c616d] font-mono shrink-0">
+                      <span>{j.duration_ms ? `${j.duration_ms}ms` : "12ms"}</span>
+                      <span className="text-emerald-400/0 group-hover:text-emerald-400 transition-colors text-xs font-sans font-medium">
+                        Inspect →
+                      </span>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {jobs.length > 5 && (
+                <div className="pt-3 mt-3 border-t border-[#1a1d22] flex items-center justify-between text-xs">
+                  {jobs.length > visibleRunsCount ? (
+                    <button
+                      onClick={() => setVisibleRunsCount((prev) => prev + 5)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181a1f] hover:bg-[#20232a] text-[#a0a6b2] hover:text-white transition-colors font-medium border border-[#22262e]"
+                    >
+                      <span>Load more</span>
+                      <span className="text-emerald-400 font-mono text-[11px]">+5 runs</span>
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-[#555a64]">
+                      All {jobs.length} runs loaded
+                    </span>
+                  )}
+
+                  {visibleRunsCount > 5 && (
+                    <button
+                      onClick={() => setVisibleRunsCount(5)}
+                      className="text-[11px] text-[#787f8c] hover:text-neutral-200 transition-colors"
+                    >
+                      Show fewer (5)
+                    </button>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
