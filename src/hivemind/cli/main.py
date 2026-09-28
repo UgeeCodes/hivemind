@@ -23,10 +23,12 @@ app = typer.Typer(
 child_app = typer.Typer(help='Manage the local daemon.')
 token_app = typer.Typer(help='Manage API tokens.')
 volume_app = typer.Typer(help='Manage volumes.')
+security_app = typer.Typer(help='Run security isolation probes and evaluation scorecards.')
 
 app.add_typer(child_app, name='child')
 app.add_typer(token_app, name='token')
 app.add_typer(volume_app, name='volume')
+app.add_typer(security_app, name='security')
 
 # ---- Top-level commands ----
 
@@ -370,6 +372,51 @@ def skill(
     else:
         path = generate_skill(output_dir=output)
         console.print(f'[bold green]✓ SKILL.md generated[/bold green] → {path}')
+
+# ---- Security evaluation command ----
+
+@security_app.command('run')
+def security_run(
+    backend: str = typer.Option('seatbelt', '-b', '--backend', help='Isolation backend to test (seatbelt, tart, or all)'),
+    json_output: bool = typer.Option(False, '--json', help='Output results as structured JSON dataset'),
+    output_file: Optional[str] = typer.Option(None, '-o', '--output', help='Save Markdown report to file'),
+):
+    """Run empirical security containment probes against isolation backends."""
+    import asyncio
+    import json
+    from hivemind.daemon.backends import get_backend
+    from hivemind.security.runner import SecurityProbeRunner
+    from hivemind.security.report import generate_markdown_report, generate_json_report
+
+    targets = ['seatbelt', 'tart'] if backend.lower() == 'all' else [backend.lower()]
+    runner = SecurityProbeRunner()
+    results_by_backend = {}
+
+    for b_name in targets:
+        try:
+            b_instance = get_backend(b_name)
+        except Exception as e:
+            console.print(f'[yellow]Skipping backend {b_name}: {e}[/yellow]')
+            continue
+
+        if not json_output:
+            console.print(f'[dim]Running security probes against {b_name}...[/dim]')
+
+        res = asyncio.run(runner.run_suite(b_instance))
+        results_by_backend[b_name] = res
+
+    if json_output:
+        report_data = generate_json_report(results_by_backend)
+        print(json.dumps(report_data, indent=2))
+        return
+
+    md_report = generate_markdown_report(results_by_backend)
+    console.print(md_report)
+
+    if output_file:
+        from pathlib import Path
+        Path(output_file).write_text(md_report, encoding='utf-8')
+        console.print(f'[green]Saved security report to {output_file}[/green]')
 
 if __name__ == '__main__':
     app()
