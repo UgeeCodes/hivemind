@@ -182,6 +182,23 @@ hivemind run --backend tart "swift build"
 
 If Tart is not installed, Hivemind automatically falls back to Seatbelt with a notice on stderr.
 
+### Sandboxes & Lifecycle Management
+
+Commands run in isolated sandboxes. You can name a sandbox with `--sandbox <id>` to create a persistent environment where dependencies, virtual environments, and data files (such as model weights or dataset caches) are preserved across runs:
+
+```bash
+# 1. Create a persistent virtual environment in a named sandbox
+hivemind run --sandbox ml-env "python3 -m venv .venv && .venv/bin/pip install torch"
+
+# 2. Re-use the same sandbox across runs without re-installing
+hivemind run --sandbox ml-env ".venv/bin/python3 -c 'import torch; print(torch.__version__)'"
+```
+
+**Lifecycle & Teardown:**
+- **Persistent Storage**: Sandboxes reside under `~/.hivemind/sandboxes/<id>` on the hosting Mac.
+- **Physical Teardown**: When destroyed via the dashboard or API (`DELETE /api/sandboxes/{id}`), the control plane sends a `SandboxDestroy` message over WebSocket to the daemon, safely removing the sandbox directory via `shutil.rmtree()` with path-traversal protection.
+- **Auto-Reactivation**: Running a new command against a previously destroyed sandbox automatically resets its status to `active` in the control plane and re-provisions a fresh directory tree.
+
 ### The `--real` flag
 
 By default, commands run with an isolated `HOME` directory. Pass `--real` (CLI) or `inherit_home=True` (SDK) to use the real user home, giving access to installed tools, dotfiles, and shell configuration.
@@ -382,17 +399,36 @@ hivemind.configure(
 
 ## Dashboard
 
-Hivemind includes a Next.js web dashboard (default: `http://localhost:3000`).
+Hivemind includes a modern, dark-themed Next.js web dashboard (`http://localhost:3000`).
 
-**Overview Page:**
+To run the dashboard locally:
 
-- Live fleet status with hardware telemetry (chip, cores, RAM, CPU/memory load)
-- Quick Run terminal for executing commands from the browser
-- Run Inspector showing recent job history with stdout/stderr and exit codes
+```bash
+cd web
+npm install
+npm run dev
+```
 
-**Tokens Page (`/tokens`):**
+### Dashboard Pages & Features
 
-- Create, list, and revoke API tokens from the browser
+* **Overview (`/`)**:
+  - Live fleet status with hardware telemetry (Apple Silicon chip, physical cores, RAM, real-time CPU & memory pressure).
+  - Stat cards linking directly to **Sandboxes**, **Volumes**, and **Secrets**.
+  - Interactive in-browser **Quick Run** bar for immediate command execution.
+  - **Live Activity Feed**: Interactive run log with real-time status streaming, click-to-inspect stdout/stderr modals, and **"Load more (+5 runs)"** pagination.
+
+* **Sandboxes (`/sandboxes`)**:
+  - Full inventory of all execution environments across your Mac fleet.
+  - **"Active / All"** toggle: switch between currently active environments and historical destroyed sandboxes.
+  - **One-Click Destroy**: Dispatches physical directory teardown directly to the host daemon with path-traversal protection.
+  - **Live 3-Second Auto-Polling**: Keeps the inventory updated in real-time without manual page refreshes.
+
+* **Volumes (`/volumes`)**:
+  - Create, inspect, and delete named persistent storage volumes.
+  - View total storage capacity allocation and volume metadata.
+
+* **API Tokens (`/tokens`)**:
+  - Create and manage scoped API keys (`admin`, `run`, `read`) with one-click revocation.
 
 ---
 
@@ -406,12 +442,15 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run tests
+# Run tests (49 automated unit tests)
 python3 -m unittest discover tests -v
 
 # Start control plane + daemon locally
 hivemind serve &
 hivemind child start --foreground
+
+# Start the web dashboard (in another terminal)
+cd web && npm run dev
 ```
 
 ---
