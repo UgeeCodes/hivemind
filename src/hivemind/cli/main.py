@@ -399,6 +399,10 @@ def security_run(
             console.print(f'[yellow]Skipping backend {b_name}: {e}[/yellow]')
             continue
 
+        if not b_instance.is_available():
+            console.print(f'[yellow]Skipping backend {b_name}: requirements not met or binary not installed on host[/yellow]')
+            continue
+
         if not json_output:
             console.print(f'[dim]Running security probes against {b_name}...[/dim]')
 
