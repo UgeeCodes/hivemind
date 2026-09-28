@@ -3,15 +3,21 @@ Scorecard and reporting utilities for security probe evaluations.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from hivemind.security.runner import ProbeResult
 
 
-def generate_markdown_report(results_by_backend: Dict[str, List[ProbeResult]]) -> str:
+def generate_markdown_report(
+    results_by_backend: Dict[str, List[ProbeResult]],
+    skipped_backends: Optional[Dict[str, str]] = None,
+) -> str:
     """Generate a publication-ready Markdown comparison table across isolation backends."""
     backends = list(results_by_backend.keys())
     if not backends:
-        return "# Hivemind Security Evaluation Report\n\nNo backends evaluated.\n"
+        report = "# Hivemind Security Evaluation Report\n\nNo backends evaluated.\n"
+        for backend, reason in (skipped_backends or {}).items():
+            report += f"\n- **{backend.capitalize()}**: SKIPPED / NOT TESTED — {reason}\n"
+        return report
 
     # Index results by probe_id
     probe_map: Dict[str, Dict[str, ProbeResult]] = {}
@@ -57,15 +63,24 @@ def generate_markdown_report(results_by_backend: Dict[str, List[ProbeResult]]) -
         pct = (cnt / total_probes * 100) if total_probes > 0 else 0
         lines.append(f"- **{b.capitalize()}**: {cnt}/{total_probes} probes contained ({pct:.1f}%)")
 
+    for backend, reason in (skipped_backends or {}).items():
+        lines.append(f"- **{backend.capitalize()}**: SKIPPED / NOT TESTED — {reason}")
     lines.append("")
     return "\n".join(lines)
 
 
-def generate_json_report(results_by_backend: Dict[str, List[ProbeResult]]) -> Dict[str, Any]:
+def generate_json_report(
+    results_by_backend: Dict[str, List[ProbeResult]],
+    skipped_backends: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
     """Generate a structured dictionary / JSON dataset for statistical analysis and plotting."""
     data: Dict[str, Any] = {
         "benchmark": "hivemind_security_probe_suite",
         "backends": {},
+        "skipped_backends": {
+            name: {"status": "skipped", "reason": reason}
+            for name, reason in (skipped_backends or {}).items()
+        },
     }
 
     for b_name, res_list in results_by_backend.items():

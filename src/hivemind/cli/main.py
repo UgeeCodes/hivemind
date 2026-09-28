@@ -391,16 +391,15 @@ def security_run(
     targets = ['seatbelt', 'tart'] if backend.lower() == 'all' else [backend.lower()]
     runner = SecurityProbeRunner()
     results_by_backend = {}
+    skipped_backends = {}
 
     for b_name in targets:
         try:
             b_instance = get_backend(b_name)
+            runner.validate_backend(b_instance)
         except Exception as e:
-            console.print(f'[yellow]Skipping backend {b_name}: {e}[/yellow]')
-            continue
-
-        if not b_instance.is_available():
-            console.print(f'[yellow]Skipping backend {b_name}: requirements not met or binary not installed on host[/yellow]')
+            skipped_backends[b_name] = str(e)
+            Console(stderr=True).print(f'Skipping backend {b_name}: {e}', style='yellow', markup=False)
             continue
 
         if not json_output:
@@ -410,12 +409,13 @@ def security_run(
         results_by_backend[b_name] = res
 
     if json_output:
-        report_data = generate_json_report(results_by_backend)
+        report_data = generate_json_report(results_by_backend, skipped_backends)
         print(json.dumps(report_data, indent=2))
         return
 
-    md_report = generate_markdown_report(results_by_backend)
-    console.print(md_report)
+    md_report = generate_markdown_report(results_by_backend, skipped_backends)
+    from rich.markdown import Markdown
+    console.print(Markdown(md_report))
 
     if output_file:
         from pathlib import Path
@@ -424,4 +424,3 @@ def security_run(
 
 if __name__ == '__main__':
     app()
-

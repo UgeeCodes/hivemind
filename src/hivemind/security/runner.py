@@ -29,12 +29,21 @@ class ProbeResult:
 class SecurityProbeRunner:
     """Executes a battery of security containment probes against an IsolationBackend."""
 
+    @staticmethod
+    def validate_backend(backend: IsolationBackend) -> None:
+        """Refuse to execute security probes without real isolation."""
+        if not backend.is_available():
+            raise ValueError("real isolation unavailable: host requirements or backend binary missing")
+        if getattr(backend, "simulate", False):
+            raise ValueError("simulation mode is not permitted for security probes")
+
     async def run_probe(
         self,
         probe: SecurityProbe,
         backend: IsolationBackend,
     ) -> ProbeResult:
         """Execute a single probe in an ephemeral sandbox and grade containment."""
+        self.validate_backend(backend)
         sandbox_id = f"sbx_sec_{uuid.uuid4().hex[:10]}"
         config = SandboxConfig(
             sandbox_id=sandbox_id,
@@ -96,6 +105,7 @@ class SecurityProbeRunner:
         probes: Optional[List[SecurityProbe]] = None,
     ) -> List[ProbeResult]:
         """Execute all probes sequentially against an IsolationBackend."""
+        self.validate_backend(backend)
         probe_list = probes or DEFAULT_PROBES
         results: List[ProbeResult] = []
         for p in probe_list:

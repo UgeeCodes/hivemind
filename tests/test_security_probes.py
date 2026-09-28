@@ -150,5 +150,68 @@ class TestSecurityRunnerAndReports(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json_data["backends"]["seatbelt"]["contained"], 1)
 
 
+class TestSecurityBackendGuards(unittest.IsolatedAsyncioTestCase):
+    async def test_rejects_unavailable_and_simulated_before_provision(self):
+        for available, simulated in [(False, False), (False, True), (True, True)]:
+            for entry_point in ('run_probe', 'run_suite'):
+                with self.subTest(available=available, simulated=simulated, entry_point=entry_point):
+                    backend = DummyMockBackend()
+                    backend.is_available = lambda: available
+                    backend.simulate = simulated
+                    backend.provision = AsyncMock()
+                    backend.execute = AsyncMock()
+                    runner = SecurityProbeRunner()
+                    with self.assertRaises(ValueError):
+                        if entry_point == 'run_probe':
+                            await runner.run_probe(DEFAULT_PROBES[0], backend)
+                        else:
+                            await runner.run_suite(backend)
+                    backend.provision.assert_not_called()
+                    backend.execute.assert_not_called()
+
+
+class TestSecuritySkipCLI(unittest.TestCase):
+    def test_all_skips_simulation_and_keeps_json_parseable(self):
+        import json
+        from unittest.mock import patch
+        from typer.testing import CliRunner
+        from hivemind.cli.main import app
+
+        import inspect
+        runner_options = {'mix_stderr': False} if 'mix_stderr' in inspect.signature(CliRunner).parameters else {}
+        seatbelt = DummyMockBackend('seatbelt')
+        tart = DummyMockBackend('tart')
+        tart.simulate = True
+        tart.provision = AsyncMock()
+        with patch('hivemind.daemon.backends.get_backend', side_effect=[seatbelt, tart]):
+            result = CliRunner(**runner_options).invoke(app, ['security', 'run', '--backend', 'all', '--json'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        report = json.loads(result.stdout)
+        self.assertEqual(list(report['backends']), ['seatbelt'])
+        self.assertEqual(report['skipped_backends']['tart']['status'], 'skipped')
+        self.assertIn('Skipping backend tart', result.stderr)
+        tart.provision.assert_not_called()
+
+    def test_unavailable_backend_saved_as_not_tested(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from typer.testing import CliRunner
+        from hivemind.cli.main import app
+
+        backend = DummyMockBackend('tart')
+        backend.is_available = lambda: False
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'report.md'
+            with patch('hivemind.daemon.backends.get_backend', return_value=backend):
+                result = CliRunner().invoke(app, ['security', 'run', '--backend', 'tart', '-o', str(output)])
+            self.assertEqual(result.exit_code, 0, result.output)
+            report = output.read_text()
+            self.assertIn('No backends evaluated', report)
+            self.assertIn('Tart**: SKIPPED / NOT TESTED', report)
+            self.assertNotIn('0.0%', report)
+        self.assertFalse(backend.provision_called)
+
+
 if __name__ == "__main__":
     unittest.main()
