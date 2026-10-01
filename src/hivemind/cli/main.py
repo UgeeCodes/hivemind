@@ -24,11 +24,13 @@ child_app = typer.Typer(help='Manage the local daemon.')
 token_app = typer.Typer(help='Manage API tokens.')
 volume_app = typer.Typer(help='Manage volumes.')
 security_app = typer.Typer(help='Run security isolation probes and evaluation scorecards.')
+benchmark_app = typer.Typer(help='Run performance and latency benchmarks.')
 
 app.add_typer(child_app, name='child')
 app.add_typer(token_app, name='token')
 app.add_typer(volume_app, name='volume')
 app.add_typer(security_app, name='security')
+app.add_typer(benchmark_app, name='benchmark')
 
 # ---- Top-level commands ----
 
@@ -421,6 +423,62 @@ def security_run(
         from pathlib import Path
         Path(output_file).write_text(md_report, encoding='utf-8')
         console.print(f'[green]Saved security report to {output_file}[/green]')
+
+# ---- Benchmark profiling command ----
+
+@benchmark_app.command('run')
+def benchmark_run(
+    backend: str = typer.Option('seatbelt', '-b', '--backend', help='Isolation backend to benchmark (seatbelt, tart, or all)'),
+    iterations: int = typer.Option(10, '-n', '--iterations', help='Total iterations per workload (including warm-up)'),
+    warmup: int = typer.Option(2, '-w', '--warmup', help='Number of warm-up iterations to discard'),
+    json_output: bool = typer.Option(False, '--json', help='Output results as structured JSON dataset'),
+    output_file: Optional[str] = typer.Option(None, '-o', '--output', help='Save Markdown report to file'),
+):
+    """Run performance benchmarks to profile isolation backend latency."""
+    import asyncio
+    import json
+    from hivemind.daemon.backends import get_backend
+    from hivemind.benchmarks.runner import BenchmarkRunner
+    from hivemind.benchmarks.report import generate_markdown_report, generate_json_report
+
+    targets = ['seatbelt', 'tart'] if backend.lower() == 'all' else [backend.lower()]
+    runner = BenchmarkRunner()
+    results_by_backend = {}
+
+    for b_name in targets:
+        try:
+            b_instance = get_backend(b_name)
+        except Exception as e:
+            console.print(f'[yellow]Skipping backend {b_name}: {e}[/yellow]')
+            continue
+
+        if not b_instance.is_available():
+            console.print(f'[yellow]Skipping backend {b_name}: requirements not met or binary not installed on host[/yellow]')
+            continue
+
+        if not json_output:
+            console.print(f'[dim]Running benchmarks against {b_name} ({iterations} iterations, {warmup} warm-up)...[/dim]')
+
+        res = asyncio.run(runner.run_suite(b_instance, iterations=iterations, warmup=warmup))
+        results_by_backend[b_name] = res
+
+    if not results_by_backend:
+        console.print('[red]No backends available to benchmark.[/red]')
+        raise typer.Exit(code=1)
+
+    if json_output:
+        report_data = generate_json_report(results_by_backend)
+        print(json.dumps(report_data, indent=2))
+        return
+
+    from rich.markdown import Markdown
+    md_report = generate_markdown_report(results_by_backend)
+    console.print(Markdown(md_report))
+
+    if output_file:
+        from pathlib import Path
+        Path(output_file).write_text(md_report, encoding='utf-8')
+        console.print(f'[green]Saved benchmark report to {output_file}[/green]')
 
 if __name__ == '__main__':
     app()
