@@ -25,12 +25,14 @@ token_app = typer.Typer(help='Manage API tokens.')
 volume_app = typer.Typer(help='Manage volumes.')
 security_app = typer.Typer(help='Run security isolation probes and evaluation scorecards.')
 benchmark_app = typer.Typer(help='Run performance and latency benchmarks.')
+policy_app = typer.Typer(help='Hybrid policy escalator for adaptive isolation routing.')
 
 app.add_typer(child_app, name='child')
 app.add_typer(token_app, name='token')
 app.add_typer(volume_app, name='volume')
 app.add_typer(security_app, name='security')
 app.add_typer(benchmark_app, name='benchmark')
+app.add_typer(policy_app, name='policy')
 
 # ---- Top-level commands ----
 
@@ -479,6 +481,63 @@ def benchmark_run(
         from pathlib import Path
         Path(output_file).write_text(md_report, encoding='utf-8')
         console.print(f'[green]Saved benchmark report to {output_file}[/green]')
+
+# ---- Policy escalator commands ----
+
+@policy_app.command('check')
+def policy_check(
+    command: str = typer.Argument(..., help='Shell command to evaluate'),
+    inherit_home: bool = typer.Option(False, '--inherit-home', help='Simulate inherit_home=True parameter'),
+    threshold: int = typer.Option(50, '-t', '--threshold', help='Risk score threshold for Tart escalation'),
+):
+    """Evaluate a command against the hybrid policy escalator and show the routing decision."""
+    from hivemind.policy.escalator import PolicyEscalator
+
+    escalator = PolicyEscalator(threshold=threshold)
+    decision = escalator.evaluate(command, inherit_home=inherit_home)
+
+    # Color-code by risk tier
+    tier_colors = {
+        'low': 'green',
+        'medium': 'yellow',
+        'high': 'red',
+        'critical': 'bold red',
+    }
+    color = tier_colors.get(decision.risk_tier.value, 'white')
+
+    console.print(f'\n[bold]Command:[/bold]  {command}')
+    console.print(f'[bold]Score:[/bold]    {decision.risk_score}/100')
+    console.print(f'[bold]Tier:[/bold]     [{color}]{decision.risk_tier.value.upper()}[/{color}]')
+    console.print(f'[bold]Backend:[/bold]  {decision.target_backend}')
+
+    if decision.matches:
+        console.print(f'\n[bold]Triggered Rules ({len(decision.matches)}):[/bold]')
+        for m in decision.matches:
+            console.print(f'  [{color}]•[/{color}] {m.rule_id} (+{m.weight}): {m.description}')
+            console.print(f'    Matched: [dim]{m.matched_pattern}[/dim]')
+    else:
+        console.print('\n[green]No threat indicators detected.[/green]')
+
+    console.print(f'\n[dim]{decision.rationale}[/dim]\n')
+
+
+@policy_app.command('simulate')
+def policy_simulate(
+    threshold: int = typer.Option(50, '-t', '--threshold', help='Risk score threshold for Tart escalation'),
+    output_file: Optional[str] = typer.Option(None, '-o', '--output', help='Save simulation report to file'),
+):
+    """Run macro policy simulation comparing Always-Seatbelt, Always-Tart, and Hybrid routing."""
+    from hivemind.policy.simulator import run_comparison, format_comparison_report
+    from rich.markdown import Markdown
+
+    comparison = run_comparison(threshold=threshold)
+    md_report = format_comparison_report(comparison)
+    console.print(Markdown(md_report))
+
+    if output_file:
+        from pathlib import Path
+        Path(output_file).write_text(md_report, encoding='utf-8')
+        console.print(f'[green]Saved simulation report to {output_file}[/green]')
 
 if __name__ == '__main__':
     app()
