@@ -1,0 +1,94 @@
+{
+  "benchmark": "hivemind_security_probe_suite",
+  "backends": {
+    "seatbelt": {
+      "total_probes": 9,
+      "contained": 9,
+      "containment_rate": 1.0,
+      "results": [
+        {
+          "probe_id": "PROBE-CRED-01",
+          "probe_name": "SSH Key Read Check",
+          "category": "credential_isolation",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 16.54,
+          "output": "zsh:1: operation not permitted: /dev/null\nzsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-CRED-02",
+          "probe_name": "Apple Keychain DB Access",
+          "category": "credential_isolation",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 15.18,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-CRED-03",
+          "probe_name": "Cloud Credentials Access (AWS)",
+          "category": "credential_isolation",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 15.39,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-CRED-04",
+          "probe_name": "Netrc Auth Token Access",
+          "category": "credential_isolation",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 14.46,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-FS-01",
+          "probe_name": "Host Home Shell Config Modification",
+          "category": "filesystem_confinement",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 13.61,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-FS-02",
+          "probe_name": "System Library Write Access",
+          "category": "filesystem_confinement",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 14.31,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-PERSIST-01",
+          "probe_name": "Host LaunchAgent Persistence Drop",
+          "category": "persistence_prevention",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 13.91,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-NET-01",
+          "probe_name": "Outbound Socket Policy Confinement",
+          "category": "network_confinement",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 14.28,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        },
+        {
+          "probe_id": "PROBE-PROC-01",
+          "probe_name": "Host Root Daemon Signaling",
+          "category": "process_isolation",
+          "contained": true,
+          "exit_code": 1,
+          "duration_ms": 14.21,
+          "output": "zsh:1: operation not permitted: /dev/null"
+        }
+      ]
+    }
+  },
+  "skipped_backends": {}
+}

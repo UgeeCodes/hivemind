@@ -1,0 +1,658 @@
+{
+  "benchmark": "hivemind_workload_benchmark_suite",
+  "backends": {
+    "seatbelt": {
+      "total_workloads": 4,
+      "workloads": [
+        {
+          "workload_id": "BENCH-NOOP",
+          "workload_name": "No-Op Floor",
+          "category": "micro",
+          "total_iterations": 15,
+          "warmup_iterations": 3,
+          "cold": {
+            "total_ms": 16.513,
+            "provision_ms": 0.477,
+            "exec_ms": 15.452,
+            "teardown_ms": 0.584
+          },
+          "warm_stats": {
+            "mean_total_ms": 15.225,
+            "p50_total_ms": 15.19,
+            "p90_total_ms": 15.692,
+            "p99_total_ms": 15.881,
+            "std_dev_ms": 0.383,
+            "min_total_ms": 14.544,
+            "max_total_ms": 15.902,
+            "mean_provision_ms": 0.383,
+            "mean_exec_ms": 14.459,
+            "mean_teardown_ms": 0.382
+          },
+          "all_iterations": [
+            {
+              "iteration": 0,
+              "provision_ms": 0.487,
+              "exec_ms": 17.253,
+              "teardown_ms": 0.447,
+              "total_ms": 18.188,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 1,
+              "provision_ms": 0.378,
+              "exec_ms": 14.991,
+              "teardown_ms": 0.402,
+              "total_ms": 15.771,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 2,
+              "provision_ms": 0.365,
+              "exec_ms": 14.821,
+              "teardown_ms": 0.661,
+              "total_ms": 15.847,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 3,
+              "provision_ms": 0.477,
+              "exec_ms": 15.452,
+              "teardown_ms": 0.584,
+              "total_ms": 16.513,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 4,
+              "provision_ms": 0.406,
+              "exec_ms": 14.694,
+              "teardown_ms": 0.361,
+              "total_ms": 15.461,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 5,
+              "provision_ms": 0.39,
+              "exec_ms": 14.043,
+              "teardown_ms": 0.39,
+              "total_ms": 14.823,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 6,
+              "provision_ms": 0.362,
+              "exec_ms": 13.816,
+              "teardown_ms": 0.366,
+              "total_ms": 14.544,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 7,
+              "provision_ms": 0.362,
+              "exec_ms": 14.476,
+              "teardown_ms": 0.342,
+              "total_ms": 15.181,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 8,
+              "provision_ms": 0.343,
+              "exec_ms": 14.505,
+              "teardown_ms": 0.418,
+              "total_ms": 15.266,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 9,
+              "provision_ms": 0.365,
+              "exec_ms": 15.082,
+              "teardown_ms": 0.454,
+              "total_ms": 15.902,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 10,
+              "provision_ms": 0.396,
+              "exec_ms": 14.228,
+              "teardown_ms": 0.365,
+              "total_ms": 14.988,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 11,
+              "provision_ms": 0.332,
+              "exec_ms": 14.668,
+              "teardown_ms": 0.362,
+              "total_ms": 15.362,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 12,
+              "provision_ms": 0.481,
+              "exec_ms": 14.833,
+              "teardown_ms": 0.377,
+              "total_ms": 15.692,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 13,
+              "provision_ms": 0.373,
+              "exec_ms": 14.301,
+              "teardown_ms": 0.389,
+              "total_ms": 15.063,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 14,
+              "provision_ms": 0.405,
+              "exec_ms": 14.405,
+              "teardown_ms": 0.379,
+              "total_ms": 15.19,
+              "exit_code": 0,
+              "is_warmup": false
+            }
+          ]
+        },
+        {
+          "workload_id": "BENCH-PY-START",
+          "workload_name": "Python Runtime Floor",
+          "category": "micro",
+          "total_iterations": 15,
+          "warmup_iterations": 3,
+          "cold": {
+            "total_ms": 98.193,
+            "provision_ms": 0.373,
+            "exec_ms": 95.394,
+            "teardown_ms": 2.426
+          },
+          "warm_stats": {
+            "mean_total_ms": 93.152,
+            "p50_total_ms": 92.324,
+            "p90_total_ms": 95.014,
+            "p99_total_ms": 97.723,
+            "std_dev_ms": 2.017,
+            "min_total_ms": 90.929,
+            "max_total_ms": 98.024,
+            "mean_provision_ms": 0.481,
+            "mean_exec_ms": 90.61,
+            "mean_teardown_ms": 2.061
+          },
+          "all_iterations": [
+            {
+              "iteration": 0,
+              "provision_ms": 0.369,
+              "exec_ms": 327.297,
+              "teardown_ms": 2.113,
+              "total_ms": 329.78,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 1,
+              "provision_ms": 0.388,
+              "exec_ms": 94.861,
+              "teardown_ms": 2.061,
+              "total_ms": 97.31,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 2,
+              "provision_ms": 0.456,
+              "exec_ms": 107.794,
+              "teardown_ms": 2.011,
+              "total_ms": 110.261,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 3,
+              "provision_ms": 0.373,
+              "exec_ms": 95.394,
+              "teardown_ms": 2.426,
+              "total_ms": 98.193,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 4,
+              "provision_ms": 0.367,
+              "exec_ms": 89.66,
+              "teardown_ms": 2.18,
+              "total_ms": 92.206,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 5,
+              "provision_ms": 0.495,
+              "exec_ms": 95.277,
+              "teardown_ms": 2.252,
+              "total_ms": 98.024,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 6,
+              "provision_ms": 0.487,
+              "exec_ms": 92.698,
+              "teardown_ms": 1.828,
+              "total_ms": 95.014,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 7,
+              "provision_ms": 0.36,
+              "exec_ms": 91.715,
+              "teardown_ms": 2.085,
+              "total_ms": 94.161,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 8,
+              "provision_ms": 0.734,
+              "exec_ms": 89.424,
+              "teardown_ms": 2.166,
+              "total_ms": 92.324,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 9,
+              "provision_ms": 0.63,
+              "exec_ms": 91.205,
+              "teardown_ms": 2.028,
+              "total_ms": 93.864,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 10,
+              "provision_ms": 0.444,
+              "exec_ms": 88.492,
+              "teardown_ms": 1.993,
+              "total_ms": 90.929,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 11,
+              "provision_ms": 0.455,
+              "exec_ms": 89.05,
+              "teardown_ms": 2.08,
+              "total_ms": 91.586,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 12,
+              "provision_ms": 0.467,
+              "exec_ms": 89.504,
+              "teardown_ms": 2.027,
+              "total_ms": 91.997,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 13,
+              "provision_ms": 0.448,
+              "exec_ms": 89.563,
+              "teardown_ms": 2.014,
+              "total_ms": 92.024,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 14,
+              "provision_ms": 0.404,
+              "exec_ms": 90.122,
+              "teardown_ms": 2.022,
+              "total_ms": 92.548,
+              "exit_code": 0,
+              "is_warmup": false
+            }
+          ]
+        },
+        {
+          "workload_id": "BENCH-IO-BURST",
+          "workload_name": "APFS I/O Burst",
+          "category": "io",
+          "total_iterations": 15,
+          "warmup_iterations": 3,
+          "cold": {
+            "total_ms": 13.438,
+            "provision_ms": 0.373,
+            "exec_ms": 12.704,
+            "teardown_ms": 0.361
+          },
+          "warm_stats": {
+            "mean_total_ms": 13.97,
+            "p50_total_ms": 14.028,
+            "p90_total_ms": 14.307,
+            "p99_total_ms": 14.327,
+            "std_dev_ms": 0.28,
+            "min_total_ms": 13.517,
+            "max_total_ms": 14.329,
+            "mean_provision_ms": 0.394,
+            "mean_exec_ms": 13.201,
+            "mean_teardown_ms": 0.375
+          },
+          "all_iterations": [
+            {
+              "iteration": 0,
+              "provision_ms": 0.412,
+              "exec_ms": 13.472,
+              "teardown_ms": 0.414,
+              "total_ms": 14.298,
+              "exit_code": 1,
+              "is_warmup": true
+            },
+            {
+              "iteration": 1,
+              "provision_ms": 0.392,
+              "exec_ms": 13.286,
+              "teardown_ms": 0.361,
+              "total_ms": 14.039,
+              "exit_code": 1,
+              "is_warmup": true
+            },
+            {
+              "iteration": 2,
+              "provision_ms": 0.363,
+              "exec_ms": 13.83,
+              "teardown_ms": 0.38,
+              "total_ms": 14.572,
+              "exit_code": 1,
+              "is_warmup": true
+            },
+            {
+              "iteration": 3,
+              "provision_ms": 0.373,
+              "exec_ms": 12.704,
+              "teardown_ms": 0.361,
+              "total_ms": 13.438,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 4,
+              "provision_ms": 0.399,
+              "exec_ms": 13.141,
+              "teardown_ms": 0.377,
+              "total_ms": 13.916,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 5,
+              "provision_ms": 0.639,
+              "exec_ms": 13.161,
+              "teardown_ms": 0.359,
+              "total_ms": 14.159,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 6,
+              "provision_ms": 0.387,
+              "exec_ms": 13.543,
+              "teardown_ms": 0.377,
+              "total_ms": 14.307,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 7,
+              "provision_ms": 0.386,
+              "exec_ms": 13.228,
+              "teardown_ms": 0.415,
+              "total_ms": 14.028,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 8,
+              "provision_ms": 0.351,
+              "exec_ms": 13.608,
+              "teardown_ms": 0.37,
+              "total_ms": 14.329,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 9,
+              "provision_ms": 0.373,
+              "exec_ms": 13.205,
+              "teardown_ms": 0.366,
+              "total_ms": 13.945,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 10,
+              "provision_ms": 0.353,
+              "exec_ms": 12.817,
+              "teardown_ms": 0.347,
+              "total_ms": 13.517,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 11,
+              "provision_ms": 0.335,
+              "exec_ms": 13.37,
+              "teardown_ms": 0.405,
+              "total_ms": 14.109,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 12,
+              "provision_ms": 0.357,
+              "exec_ms": 12.87,
+              "teardown_ms": 0.364,
+              "total_ms": 13.591,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 13,
+              "provision_ms": 0.395,
+              "exec_ms": 12.85,
+              "teardown_ms": 0.396,
+              "total_ms": 13.64,
+              "exit_code": 1,
+              "is_warmup": false
+            },
+            {
+              "iteration": 14,
+              "provision_ms": 0.355,
+              "exec_ms": 13.417,
+              "teardown_ms": 0.354,
+              "total_ms": 14.127,
+              "exit_code": 1,
+              "is_warmup": false
+            }
+          ]
+        },
+        {
+          "workload_id": "BENCH-CPU-SIEVE",
+          "workload_name": "CPU Prime Sieve",
+          "category": "compute",
+          "total_iterations": 15,
+          "warmup_iterations": 3,
+          "cold": {
+            "total_ms": 98.139,
+            "provision_ms": 0.458,
+            "exec_ms": 95.608,
+            "teardown_ms": 2.073
+          },
+          "warm_stats": {
+            "mean_total_ms": 98.685,
+            "p50_total_ms": 98.475,
+            "p90_total_ms": 99.633,
+            "p99_total_ms": 99.691,
+            "std_dev_ms": 0.643,
+            "min_total_ms": 97.643,
+            "max_total_ms": 99.697,
+            "mean_provision_ms": 0.46,
+            "mean_exec_ms": 96.125,
+            "mean_teardown_ms": 2.1
+          },
+          "all_iterations": [
+            {
+              "iteration": 0,
+              "provision_ms": 0.336,
+              "exec_ms": 95.714,
+              "teardown_ms": 2.062,
+              "total_ms": 98.112,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 1,
+              "provision_ms": 0.429,
+              "exec_ms": 96.019,
+              "teardown_ms": 2.054,
+              "total_ms": 98.502,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 2,
+              "provision_ms": 0.472,
+              "exec_ms": 116.112,
+              "teardown_ms": 2.013,
+              "total_ms": 118.596,
+              "exit_code": 0,
+              "is_warmup": true
+            },
+            {
+              "iteration": 3,
+              "provision_ms": 0.458,
+              "exec_ms": 95.608,
+              "teardown_ms": 2.073,
+              "total_ms": 98.139,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 4,
+              "provision_ms": 0.432,
+              "exec_ms": 96.859,
+              "teardown_ms": 2.037,
+              "total_ms": 99.328,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 5,
+              "provision_ms": 0.433,
+              "exec_ms": 96.232,
+              "teardown_ms": 2.136,
+              "total_ms": 98.8,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 6,
+              "provision_ms": 0.453,
+              "exec_ms": 95.548,
+              "teardown_ms": 2.085,
+              "total_ms": 98.085,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 7,
+              "provision_ms": 0.58,
+              "exec_ms": 97.068,
+              "teardown_ms": 2.05,
+              "total_ms": 99.697,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 8,
+              "provision_ms": 0.577,
+              "exec_ms": 95.602,
+              "teardown_ms": 2.097,
+              "total_ms": 98.276,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 9,
+              "provision_ms": 0.418,
+              "exec_ms": 96.022,
+              "teardown_ms": 2.035,
+              "total_ms": 98.475,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 10,
+              "provision_ms": 0.457,
+              "exec_ms": 95.881,
+              "teardown_ms": 2.07,
+              "total_ms": 98.407,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 11,
+              "provision_ms": 0.446,
+              "exec_ms": 94.889,
+              "teardown_ms": 2.308,
+              "total_ms": 97.643,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 12,
+              "provision_ms": 0.454,
+              "exec_ms": 97.041,
+              "teardown_ms": 2.137,
+              "total_ms": 99.633,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 13,
+              "provision_ms": 0.351,
+              "exec_ms": 96.187,
+              "teardown_ms": 2.18,
+              "total_ms": 98.719,
+              "exit_code": 0,
+              "is_warmup": false
+            },
+            {
+              "iteration": 14,
+              "provision_ms": 0.457,
+              "exec_ms": 96.043,
+              "teardown_ms": 1.967,
+              "total_ms": 98.468,
+              "exit_code": 0,
+              "is_warmup": false
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
