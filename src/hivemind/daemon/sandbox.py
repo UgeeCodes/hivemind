@@ -11,12 +11,14 @@ SANDBOX_BASE = Path.home() / '.hivemind' / 'sandboxes'
 DENIED_PATHS = [
     '~/.ssh',
     '~/.aws',
-    '~/.config/gcloud',
     '~/.azure',
-    '~/.docker',
+    '~/.config/gcloud',
+    '~/Library/Keychains',
     '~/.gnupg',
     '~/.netrc',
     '~/.npmrc',
+    '~/.docker',
+    '~/Library/Application Support/1Password',
 ]
 
 def generate_seatbelt_profile(sandbox_id: str, allow_network: bool = True) -> str:

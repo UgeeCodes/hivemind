@@ -36,6 +36,8 @@ DENIED_PATHS = [
     '~/Library/Keychains',
     '~/.gnupg',
     '~/.netrc',
+    '~/.npmrc',
+    '~/.docker',
     '~/Library/Application Support/1Password',
 ]
 
